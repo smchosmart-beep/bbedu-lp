@@ -1112,6 +1112,20 @@ function detectStage(p) {
   return 11;
 }
 
+/* 모델별 토큰 분해 누적 — 서버 응답의 modelUsed로 어느 모델이 실제 사용됐는지 정확히 기록.
+   응답에 modelUsed가 없으면(구버전 서버) FORCE_MODEL을 폴백으로 사용. 키는 vendor/model 정규형. */
+function normalizeModelId(m) {
+  if (!m) return "google/" + FORCE_MODEL;
+  return String(m).includes("/") ? String(m) : "google/" + String(m);
+}
+function accumUsageByModel(modelUsed, prompt, output) {
+  const key = normalizeModelId(modelUsed);
+  const x = (state.usageByModel[key] = state.usageByModel[key] || { prompt: 0, output: 0, calls: 0 });
+  x.prompt += Number(prompt) || 0;
+  x.output += Number(output) || 0;
+  x.calls += 1;
+}
+
 /* function calling 지원 호출 — { content, functionCalls } 반환. onRetry(n,total,status)로 재시도 진행 통지 */
 async function callLLM(messages, maxTokens = 16000, onRetry = null) {
   const stage = detectStage(state.partialPlan);
