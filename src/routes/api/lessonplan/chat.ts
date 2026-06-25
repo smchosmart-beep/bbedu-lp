@@ -287,10 +287,13 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
               const parsed = JSON.parse(result.text);
               return Response.json({ ...parsed, _usd: costUsd, _model: modelInUse });
             } catch {
-              return Response.json(
-                { error: "JSON 파싱 실패", raw: result.text.slice(0, 1000) },
-                { status: 502 },
-              );
+              // 502 대신 200 + fallback 신호 — 프론트 흰화면 방지
+              return Response.json({
+                error: "JSON 파싱 실패",
+                fallback: true,
+                raw: result.text.slice(0, 1000),
+                _model: modelInUse,
+              });
             }
           }
 
@@ -308,6 +311,7 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           });
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
+          console.error("[lessonplan/chat] gateway error:", message);
           void logUsage({
             model: resolvedModel,
             variant: variant ?? null,
@@ -320,8 +324,19 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
             cost_usd: 0,
             error: message.slice(0, 500),
           });
-          const status = /\b429\b/.test(message) ? 429 : /\b402\b/.test(message) ? 402 : 502;
-          return Response.json({ error: `AI Gateway 오류`, detail: message.slice(0, 500) }, { status });
+          // 429/402 는 그대로 노출(클라가 분기), 그 외 업스트림 오류는 200 + fallback 으로 다운그레이드
+          // → Lovable 프록시가 502를 RUNTIME_ERROR/blank screen 으로 처리하는 걸 방지
+          if (/\b429\b/.test(message)) {
+            return Response.json({ error: "rate limited", detail: message.slice(0, 500) }, { status: 429 });
+          }
+          if (/\b402\b/.test(message)) {
+            return Response.json({ error: "credits exhausted", detail: message.slice(0, 500) }, { status: 402 });
+          }
+          return Response.json({
+            error: "AI Gateway 오류",
+            fallback: true,
+            detail: message.slice(0, 500),
+          });
         }
       },
     },
