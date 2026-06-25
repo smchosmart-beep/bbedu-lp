@@ -5,8 +5,14 @@ import {
   adaptMessages,
   estimateCostUsd,
   geminiToolsToOpenAI,
+  hasStageConflict,
+  isMalformedSignal,
+  pickModelForTier,
+  pickTier,
   resolveModelId,
+  tierConfig,
   toolCallsToGemini,
+  type Tier,
 } from "@/lib/lessonplan-bridge.server";
 import { createLovableAiGatewayProvider } from "@/lib/ai-gateway.server";
 
