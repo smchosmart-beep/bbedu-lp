@@ -1171,13 +1171,15 @@ async function callLLM(messages, maxTokens = 16000, onRetry = null) {
 /* [USE_INTER] Interactions API 호출 — 클라는 previous_interaction_id + 현재 input만 보낸다(히스토리는 서버 보관).
    input: 첫 턴=user 문자열, 이후=function_result 배열. 응답 functionCalls는 callId(서버 step id)를 포함. */
 async function callLLMInter(input, onRetry = null) {
+  const stage = detectStage(state.partialPlan);
+  const systemPrompt = buildSystemPrompt(stage);
   for (let attempt = 0; ; attempt++) {
     let res;
     try {
       res = await fetch(INTER_API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ previousInteractionId: state.interactionId, input, system: SYSTEM_PROMPT, tools: TOOLS, maxTokens: 16000, model: FORCE_MODEL, variant: VARIANT }),
+        body: JSON.stringify({ previousInteractionId: state.interactionId, input, system: systemPrompt, tools: TOOLS, maxTokens: 16000, model: FORCE_MODEL, variant: VARIANT, stage }),
       });
     } catch (netErr) {
       if (attempt < LLM_RETRY_DELAYS.length) { if (onRetry) onRetry(attempt + 1, LLM_RETRY_DELAYS.length, 0); await sleep(LLM_RETRY_DELAYS[attempt]); continue; }
