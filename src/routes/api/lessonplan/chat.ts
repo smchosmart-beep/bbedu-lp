@@ -122,16 +122,16 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
 
         // === Tier 결정 (T1 충돌 가드 포함) ===
         // - json 요청(검수)은 호출자가 forceTier 또는 명시 model 로 직접 모델 선택
-        // - 그 외 일반 챗 호출은 stage 기반 PRIMARY/CHEAP 라우팅
+        // - 그 외 일반 챗 호출은 stage 기반 PRIMARY/MID/LITE 라우팅
         let tier: Tier;
-        if (forceTier === "PRIMARY" || forceTier === "CHEAP") {
+        if (forceTier === "PRIMARY" || forceTier === "MID" || forceTier === "LITE") {
           tier = forceTier;
         } else if (json && model) {
           // 검수 등 명시 모델 — 클라가 요청한 model 그대로 사용 (tier 무시)
           tier = "PRIMARY";
         } else {
           tier = pickTier(typeof stage === "number" ? stage : null);
-          if (tier === "CHEAP" && hasStageConflict(stage, messages)) tier = "PRIMARY";
+          if (tier !== "PRIMARY" && hasStageConflict(stage, messages)) tier = escalateTier(tier);
         }
 
         // 모델 결정: json+model 명시면 그 모델, 아니면 tier 별 디폴트
@@ -171,11 +171,22 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
             }
           }
 
-          // === 실행 + MALFORMED 시 PRIMARY 재시도 ===
+          // === 실행 + 폴백 ===
+          // 폴백 조건 (한 단계 격상, 최대 1회):
+          //   (1) JSON 모드인데 파싱 실패
+          //   (2) tools 제공됐는데 functionCalls=0 이고 content가 너무 짧음(<40자) — 침묵 실패
+          //   (3) MALFORMED_FUNCTION_CALL 류 에러
+          let tierInUse = tier;
           let modelInUse = resolvedModel;
           let tcfgInUse = tcfg;
           let result;
           let triedFallback = false;
+          const escalate = () => {
+            triedFallback = true;
+            tierInUse = escalateTier(tierInUse);
+            modelInUse = pickModelForTier(tierInUse, model);
+            tcfgInUse = tierConfig(tierInUse);
+          };
           // eslint-disable-next-line no-constant-condition
           while (true) {
             try {
@@ -193,29 +204,40 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
                     } as never)
                   : {}),
               });
-              // CHEAP 시도 후 결과가 비어 있거나 JSON 모드인데 파싱 불가 → PRIMARY 폴백
-              if (!triedFallback && tier === "CHEAP" && json) {
-                try {
-                  JSON.parse(result.text || "");
-                } catch {
-                  triedFallback = true;
-                  modelInUse = pickModelForTier("PRIMARY", model);
-                  tcfgInUse = tierConfig("PRIMARY");
-                  continue;
+              if (!triedFallback && tierInUse !== "PRIMARY") {
+                // (1) JSON 파싱 실패
+                if (json) {
+                  try {
+                    JSON.parse(result.text || "");
+                  } catch {
+                    console.warn(`[tier-fallback] reason=json-parse from=${tierInUse} stage=${stageStr}`);
+                    escalate();
+                    continue;
+                  }
+                }
+                // (2) tool-call 침묵 실패
+                if (aiTools) {
+                  const tc = (result as unknown as { toolCalls?: unknown[] }).toolCalls ?? [];
+                  const textLen = (result.text || "").trim().length;
+                  if (tc.length === 0 && textLen < 40) {
+                    console.warn(`[tier-fallback] reason=silent-toolcall from=${tierInUse} stage=${stageStr} textLen=${textLen}`);
+                    escalate();
+                    continue;
+                  }
                 }
               }
               break;
             } catch (innerErr) {
               const msg = innerErr instanceof Error ? innerErr.message : String(innerErr);
-              if (!triedFallback && tier === "CHEAP" && isMalformedSignal(msg)) {
-                triedFallback = true;
-                modelInUse = pickModelForTier("PRIMARY", model);
-                tcfgInUse = tierConfig("PRIMARY");
+              if (!triedFallback && tierInUse !== "PRIMARY" && isMalformedSignal(msg)) {
+                console.warn(`[tier-fallback] reason=malformed from=${tierInUse} stage=${stageStr}`);
+                escalate();
                 continue;
               }
               throw innerErr;
             }
           }
+
 
           const latency = Date.now() - start;
           const usage = result.usage ?? {};
