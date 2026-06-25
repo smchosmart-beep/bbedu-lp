@@ -82,7 +82,18 @@ async function resolveModel(requested?: string) {
   return DEFAULT_MODEL_ID;
 }
 
-async function logUsage(row: Record<string, unknown>) {
+async function logUsage(row: {
+  user_id: null;
+  model: string;
+  stage: string | null;
+  variant: string;
+  prompt_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  latency_ms: number;
+  run_id: string | null;
+  error: string | null;
+}) {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin.from("ai_usage_log").insert(row);
