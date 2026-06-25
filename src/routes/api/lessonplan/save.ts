@@ -58,7 +58,10 @@ export const Route = createFileRoute("/api/lessonplan/save")({
         const yyyy = now.getUTCFullYear();
         const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
         const uuid = crypto.randomUUID();
-        const storagePath = `${yyyy}/${mm}/${uuid}-${fileName}`;
+        // Supabase Storage rejects non-ASCII in object keys — keep path ASCII;
+        // the user-facing fileName lives in the DB row and Content-Disposition.
+        const ext = (fileName.match(/\.[A-Za-z0-9]+$/)?.[0] ?? ".hwpx").toLowerCase();
+        const storagePath = `${yyyy}/${mm}/${uuid}${ext}`;
 
         try {
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
