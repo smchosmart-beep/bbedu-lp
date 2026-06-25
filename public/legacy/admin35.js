@@ -229,9 +229,34 @@ function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
 }
 
+// 진단 — 최근 24h ai_usage_log 기록 누락·격차 신호를 배너로 노출
+async function loadDiag() {
+  try {
+    const d = await (await api("/admin/diag?variant=v35&hours=24")).json();
+    const banner = $("diagBanner");
+    if (!banner) return;
+    const logRows = Number(d.logRows || 0);
+    const plans = Number(d.plans || 0);
+    // 최근 24h에 과정안은 생성됐는데 콜 로그가 0건이면 적색 (logUsage 인서트 실패 의심)
+    if (plans > 0 && logRows === 0) {
+      banner.className = "rounded-2xl px-4 py-3 text-sm bg-rose-50 border border-rose-200 text-rose-800";
+      banner.innerHTML = `⚠ 최근 24시간 콜 로그 누락 감지 — 과정안 ${plans}건이 생성됐지만 <code>ai_usage_log</code>에 기록이 0건입니다. 비용 재계산이 동작하지 않으니 서버 로그(<code>[ai_usage_log insert failed]</code>)를 확인해 주세요.`;
+      banner.classList.remove("hidden");
+    } else if (logRows > 0 && plans === 0) {
+      banner.classList.add("hidden");   // 콜은 있고 완성 과정안만 0건 — 정상
+    } else if (logRows === 0 && plans === 0) {
+      banner.classList.add("hidden");
+    } else {
+      banner.className = "rounded-2xl px-4 py-3 text-sm bg-emerald-50 border border-emerald-200 text-emerald-800";
+      banner.innerHTML = `✓ 최근 24시간 콜 로그 ${logRows.toLocaleString()}건 · 완성 과정안 ${plans.toLocaleString()}건 (정상)`;
+      banner.classList.remove("hidden");
+    }
+  } catch (e) { /* 무시 */ }
+}
+
 async function loadAll() {
   showDash();
-  try { await Promise.all([loadCosts(), loadFiles()]); }
+  try { await Promise.all([loadCosts(), loadFiles(), loadDiag()]); }
   catch (e) { /* 401이면 logout 처리됨 */ }
 }
 
