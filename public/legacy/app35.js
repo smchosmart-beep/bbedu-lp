@@ -1180,7 +1180,7 @@ async function callLLMInter(input, onRetry = null) {
       res = await fetch(INTER_API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ previousInteractionId: state.interactionId, input, system: systemPrompt, tools: TOOLS, maxTokens: 16000, model: FORCE_MODEL, variant: VARIANT, stage }),
+        body: JSON.stringify({ previousInteractionId: state.interactionId, input, system: systemPrompt, tools: TOOLS, maxTokens: 16000, model: FORCE_MODEL, variant: VARIANT, stage, runId: state.runId }),
       });
     } catch (netErr) {
       if (attempt < LLM_RETRY_DELAYS.length) { if (onRetry) onRetry(attempt + 1, LLM_RETRY_DELAYS.length, 0); await sleep(LLM_RETRY_DELAYS[attempt]); continue; }
