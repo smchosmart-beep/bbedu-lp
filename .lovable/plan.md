@@ -1,39 +1,23 @@
-## 목표
+## 변경 요지
 
-어드민 `📋 챗봇 워크플로 & 프롬프트` 모달의 설명을 **3-Tier 라우팅(1단계 보수)** 현행 코드와 일치시키기.
+어드민 "단계별 (stage × 모델 — 라우팅 효과 추적)" 표에 **고정 stage 목록**(1·2·3·4·5·6·7·8·9·10·11·99·100)을 항상 출력. 호출 0건인 stage는 회색 0 행으로 자리만 잡기.
 
-수정 파일: `public/legacy/admin35.js` (모달 본문 HTML 상수 `WORKFLOW_INTRO`)
+`?`(stage 미부착) 행은 데이터가 있을 때만 맨 아래 추가(기존 동작 유지).
 
-## 반영할 최신 사실
+## 편집 1곳
 
-| Tier | 모델 | 적용 stage |
-|---|---|---|
-| PRIMARY | `gemini-3.5-flash` (16K/0.7) | 9(전개), 10(본문) |
-| MID | `gemini-3-flash-preview` (12K/0.7) | 5, 6, 7, 11(수업자의도), 99(검수), 100(최종검토) |
-| LITE | `gemini-3-flash-preview` (8K/0.5) | 1, 2, 3, 4, 8 |
+`public/legacy/admin35.js` L108~135 의 stage 표 렌더링 블록:
 
-폴백: MALFORMED / JSON 파싱 실패 시 한 tier 격상(최대 1회). 단계 충돌 시 `hasStageConflict`로 격상. 비상 스위치: `FORCE_PRIMARY`, `STAGE6_FORCE_PRIMARY`, `STAGE11_FORCE_PRIMARY`, `VERIFY_FORCE_PRIMARY`.
-
-## 편집 내용 (3곳)
-
-### 1) 개요 문단 (line 305)
-"2-Tier 모델 라우팅(중요 단계 5·6·7·9·10·11 = …PRIMARY / RAG·단순 단계 1~4·8 = …CHEAP)"
-→ "**3-Tier 모델 라우팅**: PRIMARY `gemini-3.5-flash` = 단계 9·10 / MID `gemini-3-flash-preview` = 단계 5·6·7·11·검수·최종검토 / LITE `gemini-3-flash-preview`(8K) = 단계 1~4·8"
-나머지(`detectStage`, `hasStageConflict`, 폴백, CORE+STAGE_GUIDES, variant=v35)는 유지.
-
-### 2) 주요 기능 라우팅 불릿 (line 336)
-"2-Tier 라우팅 (/35) — …" 항목을 3-Tier 설명으로 교체. PRIMARY/MID/LITE 모델·단계 매핑과 "한 tier 격상(최대 1회) 폴백", `FORCE_PRIMARY`/stage별 플래그로 즉시 롤백 가능 문구 포함.
-
-### 3) 2-Step A/B 검증 불릿 (line 338) — 폐기
-검수(99)·최종검토(100)는 이제 MID 단일 호출이며 `2.5-flash-lite` A단계는 더 이상 쓰지 않음. 해당 불릿을 다음으로 교체:
-"**완료 검토(MID 단일 호출)** — 검수·최종검토는 `gemini-3-flash-preview`로 호출, JSON 파싱 실패 시에만 PRIMARY로 1회 자동 폴백. 회귀 시 `VERIFY_FORCE_PRIMARY=true`로 즉시 PRIMARY 복원."
+- `stageKeys`를 `byStage`에서 뽑던 방식 → **고정 배열 `["1"..."11","99","100"]` + `byStage`에만 있는 `?`** 합성.
+- 각 행 렌더 시 `v = byStage[sk] || { usd:0, calls:0, prompt:0, output:0, models:{} }` 로 폴백.
+- `v.calls === 0`인 행은 `tr.className`에 `opacity-50`(또는 `text-slate-300`) 추가해 시각적으로 비활성. 모델명은 `—`, 숫자는 모두 `0`.
+- `totalStageUsd` 계산은 그대로(0 stage는 합산 영향 없음). `pct` 0%.
 
 ## 미적용
 
-- `public/legacy/admin.html`(메인 admin)의 동일 모달은 v35 전용 텍스트가 아니므로 손대지 않음.
-- 진행 흐름 / 사용 함수 / 정확성·안전장치 섹션은 변경 없음.
-- 서버 라우팅 코드, 클라이언트 동작 코드 변경 없음(문서 동기화만).
+- 서버(`/api/admin/$.ts`) 변경 없음 — 0건 stage는 서버에서 보낼 게 없으므로 클라이언트에서만 합성.
+- 색상/레이아웃은 기존 tailwind 클래스만 사용, 신규 CSS 없음.
 
 ## 검증
 
-배포 후 어드민 `워크플로 확인하기` 모달을 열어 3-Tier 표 텍스트와 검수 불릿이 갱신된 것 확인.
+배포 후 어드민 비용 화면에서 현재 호출 없던 stage(예: 1)도 표에 회색 0 행으로 나오는지 확인.

@@ -110,26 +110,29 @@ function renderCosts() {
     stageTb.innerHTML = "";
     const byStage = RAWCOSTS.byStage || {};
     const totalStageUsd = Object.values(byStage).reduce((s, v) => s + v.usd, 0);
-    const stageKeys = Object.keys(byStage).sort((a, b) => {
-      if (a === "?" ) return 1; if (b === "?") return -1;
-      return (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0);
-    });
+    const FIXED_STAGES = ["1","2","3","4","5","6","7","8","9","10","11","99","100"];
+    const stageKeys = FIXED_STAGES.slice();
+    if (byStage["?"]) stageKeys.push("?");
     stageKeys.forEach((sk) => {
-      const v = byStage[sk];
+      const v = byStage[sk] || { usd: 0, calls: 0, prompt: 0, output: 0, models: {} };
+      const isEmpty = !v.calls;
       const mainModel = Object.entries(v.models || {}).sort((a, b) => b[1].calls - a[1].calls)[0];
       const mainModelName = mainModel ? mainModel[0].replace("google/", "") : "—";
       const avgKrw = v.calls > 0 ? (v.usd * (RAWCOSTS.krwPerUsd || 1500)) / v.calls : 0;
       const pct = totalStageUsd > 0 ? Math.round((v.usd / totalStageUsd) * 100) : 0;
-      const tr = document.createElement("tr"); tr.className = "border-b border-slate-50";
+      const tr = document.createElement("tr");
+      tr.className = "border-b border-slate-50" + (isEmpty ? " text-slate-300" : "");
+      const dim = isEmpty ? "text-slate-300" : "text-slate-500";
+      const dimAccent = isEmpty ? "text-slate-300" : "text-brand-600";
       tr.innerHTML = `<td class="py-1.5 px-2 font-mono text-[11px]">${esc(sk)}</td>
-        <td class="px-2 text-slate-600">${esc(STAGE_LABEL[sk] || "?")}</td>
-        <td class="px-2 font-mono text-[11px] text-slate-500">${esc(mainModelName)}</td>
+        <td class="px-2 ${isEmpty ? "text-slate-300" : "text-slate-600"}">${esc(STAGE_LABEL[sk] || "?")}</td>
+        <td class="px-2 font-mono text-[11px] ${dim}">${esc(mainModelName)}</td>
         <td class="text-right px-2">${v.calls.toLocaleString()}</td>
-        <td class="text-right px-2 text-slate-500">₩${Math.round(avgKrw).toLocaleString()}</td>
-        <td class="text-right px-2 text-slate-500">${(v.prompt || 0).toLocaleString()}</td>
-        <td class="text-right px-2 text-slate-500">${(v.output || 0).toLocaleString()}</td>
-        <td class="text-right px-2 font-medium text-brand-600">${won(v.usd)}</td>
-        <td class="text-right px-2 text-slate-400">${pct}%</td>`;
+        <td class="text-right px-2 ${dim}">₩${Math.round(avgKrw).toLocaleString()}</td>
+        <td class="text-right px-2 ${dim}">${(v.prompt || 0).toLocaleString()}</td>
+        <td class="text-right px-2 ${dim}">${(v.output || 0).toLocaleString()}</td>
+        <td class="text-right px-2 font-medium ${dimAccent}">${won(v.usd)}</td>
+        <td class="text-right px-2 ${isEmpty ? "text-slate-300" : "text-slate-400"}">${pct}%</td>`;
       stageTb.appendChild(tr);
     });
   }
