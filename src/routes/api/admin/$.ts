@@ -128,7 +128,79 @@ export const Route = createFileRoute("/api/admin/$")({
           return Response.json({ byDay, krwPerUsd: KRW_PER_USD });
         }
         if (path === "/files") {
-          return Response.json({ files: [] });
+          try {
+            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+            const { data, error } = await supabaseAdmin
+              .from("hwpx_files")
+              .select("id, file_name, created_at, model, cost_krw, usage, meta")
+              .order("created_at", { ascending: false })
+              .limit(200);
+            if (error) {
+              return Response.json({ items: [], error: error.message });
+            }
+            const items = (data ?? []).map((r) => {
+              const u = (r.usage ?? {}) as Record<string, unknown>;
+              const m = (r.meta ?? {}) as Record<string, unknown>;
+              return {
+                id: r.id,
+                fileName: r.file_name,
+                createdAt: r.created_at,
+                모델: r.model ?? "",
+                krw: Number(r.cost_krw ?? 0),
+                calls: Number(u.calls ?? 0),
+                토큰: {
+                  prompt: Number(u.prompt ?? 0),
+                  output: Number(u.output ?? 0),
+                  cached: Number(u.cached ?? 0),
+                },
+                학년: String(m["학년"] ?? ""),
+                학기: String(m["학기"] ?? ""),
+                교과: String(m["교과"] ?? ""),
+                단원: String(m["단원"] ?? ""),
+                성취기준: String(m["성취기준"] ?? ""),
+                수업주제: String(m["수업주제"] ?? ""),
+              };
+            });
+            return Response.json({ items });
+          } catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            return Response.json({ items: [], error: message });
+          }
+        }
+        // /files/{id}/download
+        const dl = path.match(/^\/files\/([^/]+)\/download$/);
+        if (dl) {
+          const id = dl[1];
+          try {
+            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+            const { data: row, error: rowErr } = await supabaseAdmin
+              .from("hwpx_files")
+              .select("file_name, storage_path")
+              .eq("id", id)
+              .maybeSingle();
+            if (rowErr || !row) {
+              return new Response("not found", { status: 404 });
+            }
+            const { data: blob, error: dlErr } = await supabaseAdmin.storage
+              .from("hwpx")
+              .download(row.storage_path);
+            if (dlErr || !blob) {
+              return new Response("download failed: " + (dlErr?.message ?? ""), { status: 502 });
+            }
+            const buf = Buffer.from(await blob.arrayBuffer());
+            const encoded = encodeURIComponent(row.file_name);
+            return new Response(buf, {
+              status: 200,
+              headers: {
+                "Content-Type": "application/vnd.hancom.hwpx",
+                "Content-Disposition": `attachment; filename*=UTF-8''${encoded}`,
+                "Cache-Control": "no-store",
+              },
+            });
+          } catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            return new Response("error: " + message, { status: 500 });
+          }
         }
         return Response.json({ error: "not found" }, { status: 404 });
       },
