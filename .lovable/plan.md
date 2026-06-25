@@ -1,80 +1,72 @@
-# 챗봇 비용 최적화 플랜 (T1~T3 보정 반영 최종본)
+목표: 최근 적용된 2-Tier 라우팅·stage 태그·A/B 검증 구조에 맞춰 챗봇의 SYSTEM_PROMPT 및 워크플로 텍스트를 정비한다.
+범위는 프롬프트/문서 정비에 한정하며, 모델·라우팅 로직(이미 구현됨)은 변경하지 않는다.
 
-목표: 교수학습과정안 1건 비용 ~800원 → ~480원 (≈40%↓), 품질 유지.
+## 현재 상태 (확인됨)
+- `public/legacy/app35.js`의 `SYSTEM_PROMPT`는 단일 ~5KB 블록(라인 54~131). 매 턴 전체 주입.
+- `detectStage()` 클라 SSoT 존재, stage는 서버로 전달되어 PRIMARY/CHEAP 라우팅에 사용.
+- A/B 검증(2.5-flash-lite → 3-flash-preview)은 `verifyPlanQuality()`에 이미 구현. 사용자 프롬프트엔 "한 번의 검토"로만 기술되어 있어 문제는 없음.
+- `.lovable/plan.md` 2번 항목("SYSTEM_PROMPT 분할")이 코드에 미반영 상태 — 이번 작업의 핵심.
 
-## 1. 2-Tier 모델 라우팅
+## 변경 계획
 
-- **PRIMARY**: `gemini-3.5-flash` (품질 중요 단계)
-- **CHEAP**: `gemini-3-flash-preview` (단순 단계, ~3배 저렴)
+### 1. SYSTEM_PROMPT를 CORE + STAGE_GUIDE로 분리 (app35.js)
 
-### 라우팅 규칙 (SSoT: 클라이언트 stage 태그 단일 소스)
+**CORE (~2.5KB, 매 턴 주입):** 단계 독립 규칙만 보존.
+- [함수 사용] 전체
+- [정보 수집]
+- [사용자 직접 입력 다듬기]
+- [2022 개정 교육과정 용어]
+- [필드 작성 규칙] 전체 (교사활동·학생활동·자료유의평가·시간·sub키·단계키·도입/정리 단일·차시 비움 규칙)
+- [채팅 길이], [톤]
+- [권장 진행 순서] 머리말 1~2줄 + 단계 목록(1~11) 한 줄 요약(현 라인 71~101의 첫 문장만 추출). "각 단계의 세부 규칙은 진행 시 추가로 안내된다"는 한 줄.
 
-| 단계/상황 | 모델 |
-|---|---|
-| 5/7/9 후보 생성, 10 본문 작성, 11 최종 점검, 검증 트리거 | PRIMARY |
-| 6 평가 (카테고리 진입 → ㄹ 피드백, **sticky**) | PRIMARY |
-| RAG 중재, `present_choices`, 단순 필드 업데이트 | CHEAP |
-| 클라이언트 태그 누락 | PRIMARY (fallback) |
-| `MALFORMED_FUNCTION_CALL` / `JSON_PARSE_FAILURE` | PRIMARY 재시도 |
+**STAGE_GUIDE (현재 stage ±1만 주입):** stage별 디테일.
+- `STAGE_GUIDES = { 1: "...", 2: "...", ..., 11: "..." }` 객체로 정의.
+- 각 항목은 현 SYSTEM_PROMPT 라인 71~101의 해당 단계 본문(★ 안내 포함) 그대로 옮김.
+- stage 6은 ⓪~③·ㄱ~ㄹ 디테일이 길어 단독 1KB 수준.
 
-### Step 6 sticky 범위 (T3)
-- 진입: 해당 카테고리의 `present_choices` 응답 시점
-- 종료: 해당 카테고리 마지막 `ㄹ` 피드백 `update_plan` 완료 시점
-- 그 사이 모든 턴 PRIMARY 고정 (카테고리 ㄱ→ㄴ→ㄷ→ㄹ 일관성 보장)
+**조립 함수:**
+```js
+function buildSystemPrompt(stage) {
+  const guides = [stage - 1, stage, stage + 1]
+    .filter(s => s >= 1 && s <= 11)
+    .map(s => `[${s}단계 세부]\n${STAGE_GUIDES[s]}`)
+    .join("\n\n");
+  return `${CORE_PROMPT}\n\n${guides}`;
+}
+```
 
-### 서버측 충돌 가드 (T1)
-`bridge.server.ts`에 경량 가드 추가:
-- `update_plan` 필드명과 클라이언트 stage 태그가 명백히 불일치하면 (예: `evaluate1_*` 필드 업데이트인데 stage=2)
-- → 해당 턴 PRIMARY + STAGE_GUIDE 전체 주입으로 fallback
-- 재추정 X, 충돌 감지만 수행 (단일 SSoT 원칙 유지)
+**주입 위치:**
+- `callLLM()` (라인 1071~): `messages[0]`이 system이면 매 턴 `buildSystemPrompt(stage)`로 교체 후 전송.
+- `callLLMInter()` (라인 1126~): `system` 필드를 `buildSystemPrompt(detectStage(state.partialPlan))`로 동적 생성.
+- 세션 시작/복원 지점(라인 1208, 2410)의 초기 system도 `buildSystemPrompt(1)`로 생성.
 
-## 2. SYSTEM_PROMPT 분할
+### 2. 권장 진행 순서 머리말의 stage 일관성 검증
 
-- **CORE** (~2.5KB, 항상 주입): 전 단계 필드 작성 규칙, 톤/길이, 11단계 순서·핵심 산출물, 사용자 입력 정제 규칙
-- **STAGE_GUIDE** (~0.5~1KB, 현재 단계 ±1만): "어떻게" 디테일만
+`detectStage()`가 보는 필드 키와 워크플로 단계 번호 간 매핑이 일치하는지 한 번 점검:
+- 단계 1~11이 `detectStage` 분기와 정확히 1:1 대응되는지 확인.
+- 불일치 발견 시 STAGE_GUIDE 본문 또는 detectStage 분기 중 워크플로 본문이 정답이므로 detectStage 코멘트만 보강(로직 변경 X).
 
-## 3. 히스토리 압축
+### 3. CORE 내 검증 안내 문구 정비
 
-- `compressHistory(messages, currentStage)`
-- 트리거 조건: `currentStage ≠ 4턴전 stage` **AND** `4턴 이상 경과`
-- 동일 단계 내 압축 비활성 (RAG 후보 보존, 특히 6.ㄴ가 6.ㄱ 후보 사용)
-- `update_plan` 값은 풀로 유지
-- `complete_plan` 검증은 풀 컨텍스트 복원
+현 11단계 문장의 "complete_plan이 수행하므로 따로 점검 보고하지 않습니다"는 그대로 유지(A/B 분리는 서버 내부 구현이라 모델에 노출 불필요). 추가 변경 없음.
 
-## 4. 검증 2-Step 분리
+### 4. 검수(🔎) 프롬프트 점검
 
-- **A** (포맷/스키마): `gemini-2.5-flash-lite`
-- **B** (일관성): `gemini-3-flash-preview`
-- 둘 다 통과해야 OK. A 실패 시 B 재실행. 결과는 서버에서 `{ok, issues}` 단일 응답 머지.
-- 8회 호출 → 최대 4회로 축소.
-- A의 `json_object` 호환성: 출시 후 20샘플 측정, 실패율 >10% 시 A→`3-flash-preview`, B→`3.5-flash` 승격.
+`runReview()`/검수 프롬프트(라인 2018 부근)에 stage 의존 표현이 있는지 확인. 검수는 항상 전체 plan 기준이므로 stage 라우팅과 무관 — 변경 없음 예상이나 1회 grep 확인.
 
-## 5. 토큰/온도 (T2 반영)
+### 5. 토큰 절감 추정
 
-| 모델 | maxOutputTokens | temperature |
-|---|---|---|
-| PRIMARY | 16000 | 0.7 |
-| CHEAP | **8000** (T2: 4000→8000, `find_standards` 대용량 RAG 대응) | 0.5 |
+- 매 턴 system 토큰: 약 5KB → 2.5KB(CORE) + 0.5~1KB(STAGE_GUIDE 1~3개) = **2.5~3.5KB**.
+- 입력 토큰 약 30~40% 절감(단계당 평균).
 
-CHEAP 상한 증가는 이론상 상한일 뿐, 평균 출력엔 영향 미미.
+## 영향 범위
+- 수정 파일: `public/legacy/app35.js` 단일.
+- 서버(`chat.ts`, `bridge.server.ts`, `inter.ts`)·DB·도구 선언 변경 없음.
+- 검증/라우팅 로직 변경 없음 (이미 구현됨).
 
-## 6. 수정 파일
-
-- `src/lib/lessonplan-bridge.server.ts` — 라우팅, 충돌 가드, A/B 머지, 압축
-- `src/routes/api/lessonplan/chat.ts` — 모델 선택 진입점
-- `public/legacy/app35.js` — stage 태그 송신, CORE/STAGE_GUIDE 분할 주입
-- `public/legacy/admin35.js` + `src/routes/api/admin/$.ts` — 비교 시뮬레이터 탭 (별도)
-- DB 스키마 변경 없음
-
-## 7. 검증 절차
-
-1. **베이스라인**: 현 운영 모드에서 3~5사이클 풀 생성, `ai_usage_log` 평균 비용/턴수/실패율 기록
-2. **A/B**: Playwright로 동일 시나리오 신규 라우팅 사이클 3~5회, 비용·검증 통과율·HWPX 필드 품질 비교
-3. **A 호환성 가드**: 20샘플 후 실패율 >10% 시 모델 승격
-4. **롤백**: `pickModel()` 내 `FORCE_PRIMARY=true` 한 줄로 즉시 전부 PRIMARY 복귀
-
-## 기술 메모
-
-- 모든 모델 ID는 `google/` prefix 포함, Lovable AI Gateway allowlist 준수
-- 비용 측정은 `ai_usage_log`의 `total_credits` 합산 (사이클 단위 그룹)
-- SSoT: 서버는 stage 재추정 안 함, 클라이언트 태그가 진실. 단 충돌 감지 시 PRIMARY fallback만 수행
+## 검증 방법
+1. 빌드 후 `/legacy/35.html` 로드 → 1~11단계 시나리오 1사이클 실행, 단계 전환 시 system이 stage에 맞게 바뀌는지 console.log로 1회 확인 (배포 후 제거).
+2. `ai_usage_log`에서 평균 prompt_tokens가 30%+ 줄었는지 비교.
+3. 6단계 ㄱ→ㄴ→ㄷ→ㄹ 진행이 sticky하게 PRIMARY로 유지되는지 라우팅 가드와 함께 확인.
+4. 회귀 시 `buildSystemPrompt`가 항상 전체 STAGE_GUIDES를 합쳐 반환하도록 1줄 토글(`FORCE_FULL_PROMPT=true`)로 즉시 롤백.
