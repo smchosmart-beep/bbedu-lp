@@ -1037,15 +1037,46 @@ function llmErrorMessage(err) {
   }
 }
 
+/* === 비용 최적화: 현재 진행 단계 추정 (1~11) ===
+   서버 라우팅(PRIMARY/CHEAP)의 SSoT. partialPlan 채워진 정도로 단계 판정. */
+function detectStage(p) {
+  p = p || {};
+  if (!p.교과 || !p.학년 || !p.단원) return 1;
+  if (!p.성취기준) return 2;
+  if (!p.핵심아이디어) return 3;
+  if (!p.교과역량) return 4;
+  if (!p.탐구질문) return 5;
+  // 6: 평가 — 어느 한 평가{i} 필드라도 미완이면 6 (sticky)
+  const evalNum = parseInt(p.평가_num) || 0;
+  if (evalNum === 0) return 6;
+  for (let i = 1; i <= evalNum; i++) {
+    if (!p[`평가${i}_요소`] || !p[`평가${i}_방법`] ||
+        !p[`평가${i}_수준상`] || !p[`평가${i}_수준중`] || !p[`평가${i}_수준하`] ||
+        !p[`평가${i}_피드백`]) return 6;
+  }
+  if (!p.학습목표 || !p.학습주제) return 7;
+  if (!p.교수학습모형) return 8;
+  if (!p["전개_활동명"] && !p["전개_sub1_활동명"]) return 9;
+  const needs10 = !p["도입_교사활동"] || !p["정리_교사활동"];
+  const subs = parseInt(p.전개_num_subs) || 1;
+  if (needs10) return 10;
+  if (subs >= 2) {
+    for (let i = 1; i <= subs; i++) if (!p[`전개_sub${i}_교사활동`]) return 10;
+  } else if (!p["전개_교사활동"]) return 10;
+  if (!p.수업자의도) return 11;
+  return 11;
+}
+
 /* function calling 지원 호출 — { content, functionCalls } 반환. onRetry(n,total,status)로 재시도 진행 통지 */
 async function callLLM(messages, maxTokens = 16000, onRetry = null) {
+  const stage = detectStage(state.partialPlan);
   for (let attempt = 0; ; attempt++) {
     let res;
     try {
       res = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages, tools: TOOLS, maxTokens, model: FORCE_MODEL, variant: VARIANT }),
+        body: JSON.stringify({ messages, tools: TOOLS, maxTokens, model: FORCE_MODEL, variant: VARIANT, stage }),
       });
     } catch (netErr) {
       // 네트워크 실패(서버 도달 못 함) — 일시 오류로 보고 재시도
