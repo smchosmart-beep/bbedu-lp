@@ -114,7 +114,7 @@ export const Route = createFileRoute("/api/lessonplan/save")({
               file_name: fileName,
               storage_path: storagePath,
               variant,
-              model,
+              model: modelToStore,
               meta: meta as never,
               usage: usage as never,
               cost_usd: costUsd,
