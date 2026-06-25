@@ -348,3 +348,82 @@ document.addEventListener("DOMContentLoaded", () => {
   // 이미 로그인되어 있으면(세션) 바로 대시보드 시도
   if (getPass()) loadAll(); else showLogin();
 });
+
+/* ── 모델 비교 (Lovable AI Gateway 경유) ── */
+function renderCompareModels() {
+  const wrap = $("cmpModels");
+  if (!wrap || !CONFIG) return;
+  wrap.innerHTML = "";
+  (CONFIG.models || []).forEach((m) => {
+    const id = "cmp_" + m.replace(/[^a-z0-9]/gi, "_");
+    const lbl = document.createElement("label");
+    lbl.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-200 text-xs cursor-pointer hover:bg-slate-50";
+    lbl.innerHTML = `<input type="checkbox" value="${m}" id="${id}" class="cmp-pick" ${m === CONFIG.geminiModel ? "checked" : ""}><span>${m}</span>`;
+    wrap.appendChild(lbl);
+  });
+}
+
+async function runCompare() {
+  const prompt = $("cmpPrompt").value.trim();
+  const system = $("cmpSystem").value.trim();
+  const picked = Array.from(document.querySelectorAll(".cmp-pick:checked")).map((i) => i.value);
+  const msg = $("cmpMsg");
+  if (!prompt) { msg.textContent = "사용자 프롬프트를 입력하세요."; return; }
+  if (picked.length === 0) { msg.textContent = "모델을 1개 이상 선택하세요."; return; }
+  if (picked.length > 8) { msg.textContent = "최대 8개까지 비교할 수 있어요."; return; }
+  msg.textContent = `${picked.length}개 모델 호출 중…`;
+  $("cmpRunBtn").disabled = true;
+  $("cmpResults").innerHTML = "";
+  try {
+    const d = await (await api("/admin/compare", {
+      method: "POST",
+      body: JSON.stringify({ prompt, system, modelIds: picked }),
+    })).json();
+    const krw = d.krwPerUsd || 1500;
+    const grid = $("cmpResults");
+    (d.results || []).forEach((r) => {
+      const card = document.createElement("div");
+      card.className = "rounded-2xl border border-slate-200 p-3 bg-slate-50";
+      if (r.ok) {
+        card.innerHTML = `
+          <div class="flex items-center justify-between mb-1">
+            <div class="text-xs font-semibold">${r.model}</div>
+            <div class="text-[10px] text-slate-500">${r.latencyMs} ms</div>
+          </div>
+          <div class="text-[10px] text-slate-500 mb-2">
+            입력 ${r.promptTokens.toLocaleString()} · 출력 ${r.outputTokens.toLocaleString()} · 총 ${r.totalTokens.toLocaleString()} 토큰
+            · 약 <b class="text-brand-700">₩${(r.costKrw || Math.round((r.costUsd||0)*krw)).toLocaleString()}</b>
+            (USD ${(r.costUsd || 0).toFixed(5)})
+          </div>
+          <details class="text-xs"><summary class="cursor-pointer text-slate-600">응답 보기</summary>
+            <pre class="whitespace-pre-wrap mt-2 bg-white rounded-xl p-2 max-h-72 overflow-y-auto text-[11px] leading-relaxed">${(r.text||"").replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"})[c])}</pre>
+          </details>`;
+      } else {
+        card.innerHTML = `
+          <div class="flex items-center justify-between mb-1">
+            <div class="text-xs font-semibold">${r.model}</div>
+            <div class="text-[10px] text-red-500">${r.latencyMs} ms · 실패</div>
+          </div>
+          <div class="text-xs text-red-600 whitespace-pre-wrap">${(r.error||"").slice(0,500)}</div>`;
+      }
+      grid.appendChild(card);
+    });
+    msg.textContent = `✓ ${(d.results||[]).length}개 완료`;
+    setTimeout(() => (msg.textContent = ""), 4000);
+  } catch (e) {
+    msg.textContent = "비교 실패: " + e.message;
+  } finally {
+    $("cmpRunBtn").disabled = false;
+  }
+}
+
+// loadConfig 가 끝난 뒤 모델 칩 렌더 · 버튼 바인딩
+const _origLoadConfig = loadConfig;
+loadConfig = async function() {
+  await _origLoadConfig.apply(this, arguments);
+  try { renderCompareModels(); } catch (e) {}
+};
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = $("cmpRunBtn");
+  if (btn) btn.addEventListener("click", runCompare);
+});
