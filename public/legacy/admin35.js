@@ -252,13 +252,14 @@ function renderFiles() {
     const diffCell = (f.diff != null)
       ? `<span class="${f.diff > 0 ? "text-rose-600" : f.diff < 0 ? "text-sky-600" : "text-slate-400"}">${f.diff > 0 ? "+" : ""}${f.diff.toLocaleString()}</span>`
       : `<span class="text-slate-300">—</span>`;
+    const mlabel = dominantModelsLabel(f);
     tr.innerHTML =
       `<td class="py-1.5 px-2 whitespace-nowrap text-slate-500">${esc(dt)}</td>
        <td class="px-2">${esc(f.학년)}</td><td class="px-2">${esc(f.학기)}</td><td class="px-2">${esc(f.교과)}</td>
        <td class="px-2">${esc(f.단원)}</td>
        <td class="px-2 max-w-[220px] truncate" title="${esc(f.성취기준)}">${esc(f.성취기준)}</td>
        <td class="px-2 max-w-[180px] truncate" title="${esc(f.수업주제)}">${esc(f.수업주제)}</td>
-       <td class="px-2 whitespace-nowrap text-slate-600">${esc(f.모델 || "—")}</td>
+       <td class="px-2 whitespace-nowrap text-slate-600" title="${esc(mlabel.tip)}">${esc(mlabel.label)}</td>
        <td class="px-2 text-right whitespace-nowrap text-slate-500" title="${esc(tip)}">${esc(costCell)}</td>
        <td class="px-2 text-right whitespace-nowrap text-brand-600 font-medium" title="${esc(tip)}">${loggedCell}</td>
        <td class="px-2 text-right whitespace-nowrap font-medium">${diffCell}</td>
