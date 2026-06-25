@@ -1258,6 +1258,7 @@ function saveState() {
       callSeq: state.callSeq,
       subEditedStages: [...state.subEditedStages],
       usage: state.usage,
+      usageByModel: state.usageByModel,
       interactionId: state.interactionId,   // [USE_INTER] 서버 대화 참조 ID
       runId: state.runId,
     }));
