@@ -1,7 +1,7 @@
 // Persist generated HWPX file to Lovable Cloud Storage (private `hwpx` bucket)
 // and record metadata in `public.hwpx_files`. Used by legacy app35.js.
 import { createFileRoute } from "@tanstack/react-router";
-import { estimateCostUsd } from "@/lib/lessonplan-bridge.server";
+import { estimateCostUsd, estimateCostUsdByModel, resolveModelId, type UsageByModel } from "@/lib/lessonplan-bridge.server";
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 const KRW_PER_USD = 1500;
