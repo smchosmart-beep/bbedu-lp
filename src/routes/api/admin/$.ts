@@ -257,6 +257,11 @@ export const Route = createFileRoute("/api/admin/$")({
               const logged = rid ? krwLoggedByRun[rid] : null;
               const krwLogged = logged ? Math.round(logged.usd * KRW_PER_USD) : null;
               const byModelClient = (u.byModel ?? null) as Record<string, unknown> | null;
+              const costBuckets = logged ? {
+                build:  { krw: Math.round(logged.byBucket.build.usd  * KRW_PER_USD), calls: logged.byBucket.build.calls },
+                verify: { krw: Math.round(logged.byBucket.verify.usd * KRW_PER_USD), calls: logged.byBucket.verify.calls },
+                retry:  { krw: Math.round(logged.byBucket.retry.usd  * KRW_PER_USD), calls: logged.byBucket.retry.calls },
+              } : null;
               return {
                 id: r.id,
                 fileName: r.file_name,
@@ -267,6 +272,7 @@ export const Route = createFileRoute("/api/admin/$")({
                 loggedCalls: logged ? logged.calls : 0,
                 byModelLogged: logged ? logged.byModel : null,
                 byModelClient,
+                costBuckets,
                 runId: rid ?? null,
                 calls: Number(u.calls ?? 0),
                 토큰: {
