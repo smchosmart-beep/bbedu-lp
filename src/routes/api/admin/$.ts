@@ -183,8 +183,8 @@ export const Route = createFileRoute("/api/admin/$")({
           const to = url.searchParams.get("to");
           const fromISO = from ? new Date(from + "T00:00:00+09:00").toISOString() : null;
           const toISO = to ? new Date(to + "T23:59:59+09:00").toISOString() : null;
-          const byDay = await loadCostByDay(variant, fromISO, toISO);
-          return Response.json({ byDay, krwPerUsd: KRW_PER_USD, pricing: PRICING });
+          const { byDay, byStage } = await loadCostByDay(variant, fromISO, toISO);
+          return Response.json({ byDay, byStage, krwPerUsd: KRW_PER_USD, pricing: PRICING });
         }
         if (path === "/files") {
           try {
