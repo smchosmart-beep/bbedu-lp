@@ -222,6 +222,8 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           void logUsage({
             model: modelInUse,
             variant: variant ?? null,
+            stage: stageStr,
+            run_id: runIdStr,
             prompt: promptTokens,
             output: outputTokens,
             total: totalTokens,
