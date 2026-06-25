@@ -77,6 +77,7 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           system,
           user,
           stage,
+          runId,
           forceTier,
         } = body as {
           messages?: unknown;
@@ -88,8 +89,12 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           system?: string;
           user?: string;
           stage?: number;
+          runId?: string;
           forceTier?: Tier;
         };
+        const stageStr = typeof stage === "number" && Number.isFinite(stage) ? String(stage) : null;
+        const runIdStr = typeof runId === "string" && runId.trim() ? runId.trim().slice(0, 64) : null;
+
 
         // Build messages array
         let oaiMessages: { role: "system" | "user" | "assistant"; content: string }[] = [];
