@@ -203,7 +203,7 @@ async function loadAll() {
 const WORKFLOW_INTRO = `
   <div>
     <h3 class="font-semibold text-slate-800 mb-1">개요</h3>
-    <p class="leading-relaxed">단일 LLM 대화 + <b>함수 호출(function calling)</b>로 과정안을 완성합니다. 정확성이 필요한 교육과정 데이터는 RAG 함수로 조회하고, 화면 표시·확정은 UI/제어 함수로 처리합니다. 이 버전(<code>/35</code>)은 <b>gemini-3.5-flash 고정</b>·generateContent 방식으로 동작하며, 반복되는 시스템 프롬프트·함수 정의를 explicit 컨텍스트 캐시(캐시 단가 1/10)로 재사용해 입력 비용을 줄입니다. 트래픽은 <code>variant=v35</code>로 메인과 분리 집계됩니다.</p>
+    <p class="leading-relaxed">단일 LLM 대화 + <b>함수 호출(function calling)</b>로 과정안을 완성합니다. 정확성이 필요한 교육과정 데이터는 RAG 함수로 조회하고, 화면 표시·확정은 UI/제어 함수로 처리합니다. 이 버전(<code>/35</code>)은 <b>2-Tier 모델 라우팅</b>(중요 단계 5·6·7·9·10·11 = <code>gemini-3.5-flash</code> PRIMARY / RAG·단순 단계 1~4·8 = <code>gemini-3-flash-preview</code> CHEAP)으로 동작하며, 클라이언트 <code>detectStage()</code> SSoT와 서버 <code>hasStageConflict</code> 가드로 단계 충돌 시 PRIMARY로 자동 강등, <code>MALFORMED</code>·JSON 파싱 실패 시 PRIMARY로 1회 폴백합니다. 시스템 프롬프트는 <b>CORE(상시) + STAGE_GUIDES(현재 stage ±1)</b>로 동적 조립해 입력 토큰을 약 30~40% 절감합니다. 트래픽은 <code>variant=v35</code>로 메인과 분리 집계됩니다.</p>
   </div>
   <div>
     <h3 class="font-semibold text-slate-800 mb-1">진행 흐름</h3>
@@ -234,7 +234,10 @@ const WORKFLOW_INTRO = `
       <li><b>HWPX 다운로드</b> — 완성 시 한글 문서(.hwpx) 생성(활동 수에 맞춰 템플릿 자동 선택)</li>
       <li><b>검증(🔎) 버튼</b> — 현재 과정안의 빈 칸·흐름·무의미 값을 점검해 안내</li>
       <li><b>세션 자동 저장·복원</b> — 새로고침해도 이어서 진행(localStorage)</li>
-      <li><b>3.5-flash 고정 (/35)</b> — generateContent + explicit 컨텍스트 캐시로 입력 비용 절감, <code>variant=v35</code>로 메인과 분리 집계</li>
+      <li><b>2-Tier 라우팅 (/35)</b> — 중요 단계는 <code>gemini-3.5-flash</code>(PRIMARY), RAG·단순 단계는 <code>gemini-3-flash-preview</code>(CHEAP). 단계 충돌·MALFORMED·JSON 파싱 실패 시 PRIMARY 자동 폴백. <code>FORCE_PRIMARY=true</code>로 즉시 롤백 가능</li>
+      <li><b>동적 시스템 프롬프트</b> — CORE(상시) + STAGE_GUIDES(현재 stage ±1)만 주입해 입력 토큰 ~30~40% 절감. 회귀 시 <code>FORCE_FULL_PROMPT=true</code>로 전체 주입 복원</li>
+      <li><b>2-Step A/B 검증</b> — 완료 검토를 <code>2.5-flash-lite</code>(A) → <code>3-flash-preview</code>(B) 2단으로 축소, A에서 결함 발견 시 즉시 종료해 비용 절감, 둘 다 실패 시에만 <code>3.5-flash</code>로 폴백</li>
+      <li><b>variant 분리 집계</b> — <code>variant=v35</code>로 메인과 분리 집계</li>
       <li><b>시작 화면 자유 입력</b> — 주제뿐 아니라 수업 의도·아이디어·강조점을 적으면 설계 전반에 반영</li>
     </ul>
   </div>
