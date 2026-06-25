@@ -77,9 +77,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "교수·학습 과정안 도우미" },
+      { title: "질문이 있는 교수·학습 과정안" },
       { name: "description", content: "2022 개정 교육과정 기반 교수·학습 과정안 설계 AI 챗봇. 다양한 LLM을 비교하며 사용하세요." },
       { property: "og:type", content: "website" },
+      { property: "og:title", content: "질문이 있는 교수·학습 과정안" },
+      { name: "twitter:title", content: "질문이 있는 교수·학습 과정안" },
+      { property: "og:description", content: "2022 개정 교육과정 기반 교수·학습 과정안 설계 AI 챗봇. 다양한 LLM을 비교하며 사용하세요." },
+      { name: "twitter:description", content: "2022 개정 교육과정 기반 교수·학습 과정안 설계 AI 챗봇. 다양한 LLM을 비교하며 사용하세요." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3558bc71-8695-4029-b9df-d89132f57104/id-preview-0efb5a39--2e9515ce-b95d-4427-8b59-12a8129e7325.lovable.app-1782392619978.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3558bc71-8695-4029-b9df-d89132f57104/id-preview-0efb5a39--2e9515ce-b95d-4427-8b59-12a8129e7325.lovable.app-1782392619978.png" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
