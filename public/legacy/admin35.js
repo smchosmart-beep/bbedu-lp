@@ -187,6 +187,30 @@ function renderHead() {
   $("fileHead").innerHTML = ""; $("fileHead").appendChild(tr);
 }
 
+// 출력 토큰 기준 사용 모델 라벨 — 단일이면 그대로, 복수면 "A + B(혼합)"
+function dominantModelsLabel(f) {
+  const src = f.byModelLogged || f.byModelClient || null;
+  let models = [];
+  if (src && typeof src === "object") {
+    models = Object.entries(src)
+      .map(([k, v]) => ({ id: String(k), out: Number((v && v.output) || 0) }))
+      .filter((m) => m.id)
+      .sort((a, b) => b.out - a.out);
+  }
+  if (models.length === 0) {
+    const single = f.모델 ? String(f.모델) : "";
+    return { label: single || "—", tip: single || "" };
+  }
+  const short = (id) => id.replace(/^[^/]+\//, "");
+  if (models.length === 1) {
+    return { label: models[0].id, tip: models[0].id };
+  }
+  const top2 = models.slice(0, 2).map((m) => short(m.id));
+  const rest = models.length - 2;
+  const head = top2.join(" + ") + (rest > 0 ? ` 외 ${rest}` : "");
+  return { label: `${head}(혼합)`, tip: models.map((m) => m.id).join(", ") };
+}
+
 // 모델별 분해 툴팁 — 로그 SSoT가 있으면 그걸, 없으면 클라가 저장한 byModel을 표시
 function byModelTip(f) {
   const src = f.byModelLogged || f.byModelClient || null;
@@ -228,13 +252,14 @@ function renderFiles() {
     const diffCell = (f.diff != null)
       ? `<span class="${f.diff > 0 ? "text-rose-600" : f.diff < 0 ? "text-sky-600" : "text-slate-400"}">${f.diff > 0 ? "+" : ""}${f.diff.toLocaleString()}</span>`
       : `<span class="text-slate-300">—</span>`;
+    const mlabel = dominantModelsLabel(f);
     tr.innerHTML =
       `<td class="py-1.5 px-2 whitespace-nowrap text-slate-500">${esc(dt)}</td>
        <td class="px-2">${esc(f.학년)}</td><td class="px-2">${esc(f.학기)}</td><td class="px-2">${esc(f.교과)}</td>
        <td class="px-2">${esc(f.단원)}</td>
        <td class="px-2 max-w-[220px] truncate" title="${esc(f.성취기준)}">${esc(f.성취기준)}</td>
        <td class="px-2 max-w-[180px] truncate" title="${esc(f.수업주제)}">${esc(f.수업주제)}</td>
-       <td class="px-2 whitespace-nowrap text-slate-600">${esc(f.모델 || "—")}</td>
+       <td class="px-2 whitespace-nowrap text-slate-600" title="${esc(mlabel.tip)}">${esc(mlabel.label)}</td>
        <td class="px-2 text-right whitespace-nowrap text-slate-500" title="${esc(tip)}">${esc(costCell)}</td>
        <td class="px-2 text-right whitespace-nowrap text-brand-600 font-medium" title="${esc(tip)}">${loggedCell}</td>
        <td class="px-2 text-right whitespace-nowrap font-medium">${diffCell}</td>
