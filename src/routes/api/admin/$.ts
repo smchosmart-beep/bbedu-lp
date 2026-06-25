@@ -58,13 +58,17 @@ async function setDefaultModel(model: string): Promise<string> {
 
 const KRW_PER_USD = 1500;
 
-async function loadCostByDay(variant?: string | null): Promise<Record<string, {
+async function loadCostByDay(
+  variant?: string | null,
+  fromISO?: string | null,
+  toISO?: string | null,
+): Promise<Record<string, {
   usd: number;
   calls: number;
   tokens: number;
   sessions: number;
   plans: number;
-  models: Record<string, { usd: number; calls: number; tokens: number }>;
+  models: Record<string, { usd: number; calls: number; tokens: number; prompt: number; output: number }>;
 }>> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -72,8 +76,10 @@ async function loadCostByDay(variant?: string | null): Promise<Record<string, {
       .from("ai_usage_log")
       .select("ts, model, prompt_tokens, output_tokens, total_tokens, run_id, variant")
       .order("ts", { ascending: false })
-      .limit(5000);
+      .limit(20000);
     if (variant) q = q.eq("variant", variant);
+    if (fromISO) q = q.gte("ts", fromISO);
+    if (toISO) q = q.lte("ts", toISO);
     const { data } = await q;
     const byDay: Record<string, {
       usd: number;
@@ -81,14 +87,15 @@ async function loadCostByDay(variant?: string | null): Promise<Record<string, {
       tokens: number;
       sessions: number;
       plans: number;
-      models: Record<string, { usd: number; calls: number; tokens: number }>;
+      models: Record<string, { usd: number; calls: number; tokens: number; prompt: number; output: number }>;
       _runs?: Set<string>;
     }> = {};
     for (const row of data ?? []) {
       const r = row as { ts: string; model: string; prompt_tokens: number; output_tokens: number; total_tokens: number; run_id: string | null };
       const ts = new Date(r.ts);
       const kstDay = new Date(ts.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-      const model = r.model ?? "unknown";
+      // 모델 ID 정규형으로 통일 — 'gemini-3.5-flash'와 'google/gemini-3.5-flash'가 따로 집계되는 현상 차단
+      const model = resolveModelId(r.model ?? "unknown");
       const p = Number(r.prompt_tokens ?? 0);
       const o = Number(r.output_tokens ?? 0);
       const t = Number(r.total_tokens ?? p + o);
@@ -100,15 +107,19 @@ async function loadCostByDay(variant?: string | null): Promise<Record<string, {
       d.calls += 1;
       d.tokens += t;
       if (r.run_id) d._runs!.add(r.run_id);
-      const m = (d.models[model] = d.models[model] || { usd: 0, calls: 0, tokens: 0 });
+      const m = (d.models[model] = d.models[model] || { usd: 0, calls: 0, tokens: 0, prompt: 0, output: 0 });
       m.usd += usd;
       m.calls += 1;
       m.tokens += t;
+      m.prompt += p;
+      m.output += o;
     }
     // hwpx_files 일별 count → plans
     try {
-      let hq = supabaseAdmin.from("hwpx_files").select("created_at, variant").limit(5000);
+      let hq = supabaseAdmin.from("hwpx_files").select("created_at, variant").limit(20000);
       if (variant) hq = hq.eq("variant", variant);
+      if (fromISO) hq = hq.gte("created_at", fromISO);
+      if (toISO) hq = hq.lte("created_at", toISO);
       const { data: hrows } = await hq;
       for (const hr of hrows ?? []) {
         const ts = new Date((hr as { created_at: string }).created_at);
