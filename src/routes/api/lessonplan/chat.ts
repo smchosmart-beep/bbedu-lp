@@ -53,6 +53,20 @@ async function logUsage(row: {
   void row.cost_usd;
 }
 
+// Worker는 응답 반환 시 추적되지 않은 Promise를 종료시키므로 await 필수.
+// 단, Supabase 장애 시 본 응답이 지연되지 않도록 2초 타임아웃 race로 상한 보장.
+async function logUsageBounded(row: Parameters<typeof logUsage>[0]) {
+  await Promise.race([
+    logUsage(row),
+    new Promise<void>((resolve) =>
+      setTimeout(() => {
+        console.warn("[ai_usage_log] insert timed out (>2s) — skipped");
+        resolve();
+      }, 2000),
+    ),
+  ]);
+}
+
 export const Route = createFileRoute("/api/lessonplan/chat")({
   server: {
     handlers: {
@@ -252,7 +266,7 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           );
           const costUsd = estimateCostUsd(modelInUse, promptTokens, outputTokens);
 
-          void logUsage({
+          await logUsageBounded({
             model: modelInUse,
             variant: variant ?? null,
             stage: stageStr,
@@ -316,7 +330,7 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           console.error("[lessonplan/chat] gateway error:", message);
-          void logUsage({
+          await logUsageBounded({
             model: resolvedModel,
             variant: variant ?? null,
             stage: stageStr,
