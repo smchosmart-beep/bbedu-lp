@@ -1,41 +1,40 @@
-## 원인 요약
-
-- 게이트웨이 로그에는 방금 호출이 정상 기록되어 있으나 `public.ai_usage_log` 는 0행. 어드민 단계별 표는 이 테이블만 보므로 모든 stage가 0/회색.
-- 원인: `src/routes/api/lessonplan/chat.ts` 의 `void logUsage(...)` → 곧바로 `Response.json(...)` 반환. Cloudflare Worker는 응답 반환 시 추적되지 않은 비동기 작업을 종료시키므로 Supabase insert가 완주하지 못함.
-
 ## 변경
 
-`src/routes/api/lessonplan/chat.ts` 만 수정. 두 호출 지점(성공 경로 L255 / 에러 경로 L319)을 `void` → `await + 2초 타임아웃 race` 로 교체.
+`public/legacy/admin35.js` 단 한 곳만 수정. 서버 응답 변경/마이그레이션 없음.
 
-도우미 함수 1개를 파일 상단(logUsage 아래)에 추가:
-```ts
-async function logUsageBounded(row: Parameters<typeof logUsage>[0]) {
-  await Promise.race([
-    logUsage(row),
-    new Promise<void>((resolve) =>
-      setTimeout(() => {
-        console.warn("[ai_usage_log] insert timed out (>2s) — skipped");
-        resolve();
-      }, 2000),
-    ),
-  ]);
-}
-```
+### 표시 규칙
 
-두 호출 지점은 `await logUsageBounded({...})` 로 변경. 인자 형태/필드 동일.
+각 행마다 사용한 모델 집합을 다음 우선순위로 추출:
+1. `f.byModelLogged` (ai_usage_log SSoT — 가장 신뢰도 높음)
+2. 없으면 `f.byModelClient` (저장 시 클라가 보낸 분해)
+3. 둘 다 없으면 `f.모델` 단일값 (구버전 fallback)
 
-## 안전성
+추출한 모델들을 **출력 토큰 내림차순**으로 정렬해 라벨링:
 
-- logUsage 내부 try/catch는 그대로 — insert 실패도 본 응답을 깨지 않음.
-- non-streaming 경로(`generateText` → `Response.json`)라 await가 스트리밍 흐름을 차단할 일 없음.
-- 정상 시 TTFB +30~80ms. Supabase 장애 시에도 본 응답 지연 ≤ 2초 보장.
-- AI Gateway 호출 횟수/토큰 변동 없음 → 서버비 영향 0.
-- 영향 범위: `/api/lessonplan/chat` 하나. `/legacy/35.html`(app35.js) 와 `/legacy/index.html`(app.js) 모두 이 라우트를 쓰므로 양쪽 모두 로그가 정상화됨.
-- `src/lib/chat.functions.ts`의 동일 패턴은 이번 범위 밖. (현재 어드민 비용표가 비어 보이는 직접 원인은 chat.ts 쪽이며, chat.functions.ts는 TanStack 경로 전용이라 별 건 발생 시 따로 처리.)
+- 단일 모델: `google/gemini-3-flash-preview` (현재와 동일)
+- 2개 이상: `gemini-3.5-flash + gemini-3-flash-preview(혼합)`
+  - vendor prefix(`google/`)는 제거해 가독성 확보, 원본은 title 툴팁에 보존
+  - 3개 이상이면 출력 상위 2개 + `외 N`: `gemini-3.5-flash + gemini-3-flash-preview 외 1(혼합)`
 
-## 검증
+### 코드 변경 범위
 
-1. 빌드 후 `/legacy/35.html`에서 짧은 한 단계만 호출.
-2. `select stage, model, count(*) from ai_usage_log group by 1,2 order by 1;` 행이 생기는지 확인.
-3. `/legacy/admin35.html` 단계별 표에서 해당 stage 행이 색상·숫자로 표시되는지 확인.
-4. 의도적 부하 테스트는 생략 (타임아웃은 코드상 보장).
+`public/legacy/admin35.js`:
+- 새 헬퍼 `dominantModelsLabel(f)` 추가 — 위 규칙 구현. (`byModelTip` 바로 위)
+- L237 `<td>...${esc(f.모델 || "—")}</td>` → 라벨/툴팁 사용:
+  ```
+  <td class="px-2 whitespace-nowrap text-slate-600" title="${esc(rawModelsTip)}">${esc(label)}</td>
+  ```
+
+추가/삭제 컬럼 없음, 정렬 키 그대로 (`모델` 키는 라벨 문자열로 비교 — 혼합 행끼리도 직관적으로 묶임).
+
+### 영향 / 안전성
+
+- 서버·DB·저장 로직 미변경 → 기존 행/신규 행 모두 동일하게 재계산해서 표시.
+- `ai_usage_log` 비어있던 구 행은 byModelClient → 단일 model fallback 순으로 동작.
+- 캐시 무효화: `admin35.html` 의 `<script src="./admin35.js?v=2">` 를 `?v=3` 으로 bump.
+
+### 검증
+
+1. 어드민 새로고침 → 화면상 단일 모델 행은 그대로, 혼합 행은 `… + …(혼합)`.
+2. 마우스 오버 시 title 툴팁에 원본 모델 ID 보임.
+3. 모델 컬럼 정렬 클릭 → 라벨 기준 정렬 정상 동작.

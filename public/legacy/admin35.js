@@ -187,6 +187,30 @@ function renderHead() {
   $("fileHead").innerHTML = ""; $("fileHead").appendChild(tr);
 }
 
+// 출력 토큰 기준 사용 모델 라벨 — 단일이면 그대로, 복수면 "A + B(혼합)"
+function dominantModelsLabel(f) {
+  const src = f.byModelLogged || f.byModelClient || null;
+  let models = [];
+  if (src && typeof src === "object") {
+    models = Object.entries(src)
+      .map(([k, v]) => ({ id: String(k), out: Number((v && v.output) || 0) }))
+      .filter((m) => m.id)
+      .sort((a, b) => b.out - a.out);
+  }
+  if (models.length === 0) {
+    const single = f.모델 ? String(f.모델) : "";
+    return { label: single || "—", tip: single || "" };
+  }
+  const short = (id) => id.replace(/^[^/]+\//, "");
+  if (models.length === 1) {
+    return { label: models[0].id, tip: models[0].id };
+  }
+  const top2 = models.slice(0, 2).map((m) => short(m.id));
+  const rest = models.length - 2;
+  const head = top2.join(" + ") + (rest > 0 ? ` 외 ${rest}` : "");
+  return { label: `${head}(혼합)`, tip: models.map((m) => m.id).join(", ") };
+}
+
 // 모델별 분해 툴팁 — 로그 SSoT가 있으면 그걸, 없으면 클라가 저장한 byModel을 표시
 function byModelTip(f) {
   const src = f.byModelLogged || f.byModelClient || null;
