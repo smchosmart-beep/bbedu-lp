@@ -1,28 +1,14 @@
+// DEV ONLY: no auth — restore requireSupabaseAuth + has_role('admin') before launch.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isValidModel } from "./ai-models";
 
-async function requireAdmin(ctx: { supabase: import("@supabase/supabase-js").SupabaseClient; userId: string }) {
-  const { data, error } = await ctx.supabase.rpc("has_role", { _user_id: ctx.userId, _role: "admin" });
-  if (error) throw error;
-  if (!data) throw new Error("관리자 권한이 필요합니다");
-}
-
-export const isCurrentUserAdmin = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" });
-    return Boolean(data);
-  });
-
 export const getUsageStats = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ days: z.number().int().min(1).max(90).default(14) }).parse(input))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context);
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const since = new Date(Date.now() - data.days * 86400_000).toISOString();
-    const { data: rows, error } = await context.supabase
+    const { data: rows, error } = await supabaseAdmin
       .from("ai_usage_log")
       .select("ts, model, prompt_tokens, output_tokens, total_tokens, latency_ms, variant, error")
       .gte("ts", since)
@@ -33,7 +19,6 @@ export const getUsageStats = createServerFn({ method: "POST" })
   });
 
 export const getDefaultModel = createServerFn({ method: "GET" }).handler(async () => {
-  // public read of app_config
   const { createClient } = await import("@supabase/supabase-js");
   const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
     auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
@@ -43,12 +28,11 @@ export const getDefaultModel = createServerFn({ method: "GET" }).handler(async (
 });
 
 export const setDefaultModel = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ modelId: z.string() }).parse(input))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context);
+  .handler(async ({ data }) => {
     if (!isValidModel(data.modelId)) throw new Error("지원되지 않는 모델입니다");
-    const { error } = await context.supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
       .from("app_config")
       .upsert({ key: "default_model", value: data.modelId, updated_at: new Date().toISOString() });
     if (error) throw error;
