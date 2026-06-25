@@ -1,0 +1,1 @@
+TRUNCATE TABLE public.ai_usage_log;
