@@ -120,24 +120,26 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           return Response.json({ error: "user 메시지가 필요합니다" }, { status: 400 });
         }
 
-        // === Tier 결정 (T1 충돌 가드 포함) ===
-        // - json 요청(검수)은 호출자가 forceTier 또는 명시 model 로 직접 모델 선택
-        // - 그 외 일반 챗 호출은 stage 기반 PRIMARY/MID/LITE 라우팅
+        // === Tier 결정 ===
+        // - 검수(99)·최종검토(100): client가 명시한 model을 그대로 사용.
+        //   검수 흐름은 app35.js L1863~ 에서 의도적으로 2.5-flash-lite → 3-flash-preview
+        //   2단계 호출로 비용을 최적화함. 서버에서 MID 강제로 덮어쓰면 lite 절약 효과 사라짐.
+        // - 그 외 JSON 호출(forceTier 없음, model 명시): 호환을 위해 client model 그대로(PRIMARY).
+        // - 그 외 일반 챗 호출: stage 기반 PRIMARY/MID/LITE 라우팅.
         let tier: Tier;
         if (forceTier === "PRIMARY" || forceTier === "MID" || forceTier === "LITE") {
           tier = forceTier;
-        } else if (json && model && stage !== 99 && stage !== 100) {
-          // 검수(99)·최종검토(100)는 stage 라우팅(MID)을 따르고,
-          // 그 외 JSON 호출은 호환을 위해 호출자가 지정한 model 그대로 사용 (tier=PRIMARY)
+        } else if (json && model) {
           tier = "PRIMARY";
         } else {
           tier = pickTier(typeof stage === "number" ? stage : null);
           if (tier !== "PRIMARY" && hasStageConflict(stage, messages)) tier = escalateTier(tier);
         }
 
-        // 모델 결정: 위에서 PRIMARY 로 떨어진 명시 JSON 호출만 클라 model 사용
-        const useExplicitModel = json && !!model && stage !== 99 && stage !== 100 && forceTier === undefined;
+        // 모델 결정: 위에서 PRIMARY 로 떨어진 명시 JSON 호출은 client model 그대로
+        const useExplicitModel = json && !!model && forceTier === undefined;
         const resolvedModel = useExplicitModel ? resolveModelId(model!) : pickModelForTier(tier, model);
+
         const tcfg = tierConfig(tier);
         const openaiTools = geminiToolsToOpenAI(tools);
         const tokenCap = Math.max(

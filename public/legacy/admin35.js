@@ -135,7 +135,9 @@ function renderCosts() {
         <td class="text-right px-2 ${isEmpty ? "text-slate-300" : "text-slate-400"}">${pct}%</td>`;
       stageTb.appendChild(tr);
     });
+    // 주석: stage 라벨은 호출 시점의 partialPlan 기준이며, 라우팅 규칙 변경 이전 데이터는 현재 코드와 다를 수 있음.
   }
+
 
 
   // 차트: 기간 내 일자를 단위(일/주/월)로 버킷팅
