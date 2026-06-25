@@ -223,6 +223,23 @@ function byModelTip(f) {
   }).join("\n");
 }
 
+// 비용 구성 분해(본문/검수/재시도) — 로그 SSoT 기반. 없으면 빈 문자열.
+function costBreakdownTip(f) {
+  const cb = f.costBuckets;
+  if (!cb) return "";
+  const fmt = (n) => `₩${Number(n || 0).toLocaleString()}`;
+  const total = (cb.build?.krw || 0) + (cb.verify?.krw || 0);
+  const lines = [
+    "— 비용 구성 (로그 SSoT) —",
+    `본문    ${fmt(cb.build?.krw)}  (${cb.build?.calls || 0}콜)`,
+    `검수    ${fmt(cb.verify?.krw)}  (${cb.verify?.calls || 0}콜)`,
+    `재시도† ${fmt(cb.retry?.krw)}  (${cb.retry?.calls || 0}콜)`,
+    `합계    ${fmt(total)}`,
+    "† 같은 stage 중복 호출 추정(본문/검수에 이미 포함된 금액 중 재시도분)",
+  ];
+  return lines.join("\n");
+}
+
 function renderFiles() {
   renderHead();
   // diff = 격차(원). 양수면 로그 SSoT가 저장값보다 큼.
@@ -253,6 +270,10 @@ function renderFiles() {
       ? `<span class="${f.diff > 0 ? "text-rose-600" : f.diff < 0 ? "text-sky-600" : "text-slate-400"}">${f.diff > 0 ? "+" : ""}${f.diff.toLocaleString()}</span>`
       : `<span class="text-slate-300">—</span>`;
     const mlabel = dominantModelsLabel(f);
+    const breakdown = costBreakdownTip(f);
+    const fullTip = breakdown ? `${tip}\n\n${breakdown}` : tip;
+    const retryCalls = (f.costBuckets && f.costBuckets.retry && f.costBuckets.retry.calls) || 0;
+    const retryBadge = retryCalls > 0 ? ` <span class="text-[10px] text-amber-600" title="재시도 추정 ${retryCalls}콜">🔁${retryCalls}</span>` : "";
     tr.innerHTML =
       `<td class="py-1.5 px-2 whitespace-nowrap text-slate-500">${esc(dt)}</td>
        <td class="px-2">${esc(f.학년)}</td><td class="px-2">${esc(f.학기)}</td><td class="px-2">${esc(f.교과)}</td>
@@ -260,8 +281,8 @@ function renderFiles() {
        <td class="px-2 max-w-[220px] truncate" title="${esc(f.성취기준)}">${esc(f.성취기준)}</td>
        <td class="px-2 max-w-[180px] truncate" title="${esc(f.수업주제)}">${esc(f.수업주제)}</td>
        <td class="px-2 whitespace-nowrap text-slate-600" title="${esc(mlabel.tip)}">${esc(mlabel.label)}</td>
-       <td class="px-2 text-right whitespace-nowrap text-slate-500" title="${esc(tip)}">${esc(costCell)}</td>
-       <td class="px-2 text-right whitespace-nowrap text-brand-600 font-medium" title="${esc(tip)}">${loggedCell}</td>
+       <td class="px-2 text-right whitespace-nowrap text-slate-500" title="${esc(fullTip)}">${esc(costCell)}</td>
+       <td class="px-2 text-right whitespace-nowrap text-brand-600 font-medium" title="${esc(fullTip)}">${loggedCell}${retryBadge}</td>
        <td class="px-2 text-right whitespace-nowrap font-medium">${diffCell}</td>
        <td class="text-right px-2"></td>`;
     const btn = document.createElement("button");
