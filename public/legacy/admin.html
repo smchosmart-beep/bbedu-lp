@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ko" class="h-full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>관리자 · 교수·학습 과정안 도우미</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      fontFamily: { sans: ['Pretendard','system-ui','sans-serif'] },
+      colors: { brand: { 50:'#ecfdf5', 100:'#d1fae5', 400:'#34d399', 500:'#10b981', 600:'#059669', 700:'#047857' } },
+      boxShadow: { card: '0 1px 3px 0 rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1)' }
+    } }
+  }
+</script>
+<style>
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { background:#f0fdfa; }
+  th.sortable .arrow { color:#10b981; font-size:10px; }
+</style>
+</head>
+<body class="h-full bg-slate-50 text-slate-900 font-sans antialiased">
+
+<!-- ── 로그인 게이트 ── -->
+<div id="login" class="min-h-full flex">
+  <form id="loginForm" class="m-auto w-full max-w-sm bg-white rounded-3xl shadow-card p-6 text-center space-y-4">
+    <div class="mx-auto w-14 h-14 rounded-[18px] bg-brand-500 grid place-items-center shadow-card">
+      <span class="text-white text-2xl">🔒</span>
+    </div>
+    <h1 class="text-lg font-bold">관리자 로그인</h1>
+    <input id="pw" type="password" autocomplete="current-password" placeholder="비밀번호"
+      class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:border-brand-500">
+    <p id="loginErr" class="text-xs text-red-500 hidden">비밀번호가 올바르지 않습니다.</p>
+    <button type="submit" class="w-full rounded-2xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold py-3 transition-colors">로그인</button>
+    <a href="index.html" class="block text-xs text-slate-400 hover:text-slate-600">← 앱으로 돌아가기</a>
+  </form>
+</div>
+
+<!-- ── 대시보드 ── -->
+<div id="dash" class="hidden max-w-6xl mx-auto px-5 py-6 space-y-6">
+  <header class="flex items-center gap-3">
+    <h1 class="text-lg font-bold">관리자 대시보드</h1>
+    <span class="text-xs text-slate-400">교수·학습 과정안 도우미</span>
+    <div class="ml-auto flex items-center gap-2">
+      <a href="index.html" class="text-xs px-3 py-1.5 rounded-xl bg-white shadow-card text-slate-600 hover:text-slate-900">← 앱</a>
+      <button id="logoutBtn" class="text-xs px-3 py-1.5 rounded-xl bg-white shadow-card text-slate-600 hover:text-slate-900">로그아웃</button>
+    </div>
+  </header>
+
+  <!-- 모델 설정 -->
+  <section class="bg-white rounded-3xl shadow-card p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold">⚙️ 모델 설정</h2>
+      <button id="workflowBtn" class="rounded-2xl border border-brand-500 text-brand-600 hover:bg-brand-50 text-sm font-medium px-4 py-2 transition-colors">📋 워크플로 확인하기</button>
+    </div>
+    <div class="flex items-end gap-3 flex-wrap">
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">서비스 기본 모델 (전체 사용자 적용)</label>
+        <select id="modelSel" class="rounded-2xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:border-brand-500 min-w-[220px]"></select>
+      </div>
+      <button id="saveModelBtn" class="rounded-2xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium px-4 py-2 transition-colors">저장</button>
+      <span id="modelMsg" class="text-xs text-brand-600"></span>
+    </div>
+    <p class="text-[11px] text-slate-400 mt-2">현재 모델: <b id="curModel">…</b></p>
+  </section>
+
+  <!-- 비용 -->
+  <section class="bg-white rounded-3xl shadow-card p-5">
+    <div class="flex items-center gap-2 mb-3 flex-wrap">
+      <h2 class="text-sm font-semibold">💰 비용 추적 <span class="font-normal text-[11px] text-slate-400">(환율 1 USD = <span id="rate">1,500</span>원, 추정치)</span></h2>
+      <div class="ml-auto flex items-center gap-1.5 text-xs">
+        <select id="periodSel" class="rounded-xl border border-slate-200 px-2.5 py-1.5 focus:outline-none focus:border-brand-500">
+          <option value="all">전체 기간</option>
+          <option value="30">최근 30일</option>
+          <option value="7">최근 7일</option>
+          <option value="1">오늘</option>
+        </select>
+        <select id="granSel" class="rounded-xl border border-slate-200 px-2.5 py-1.5 focus:outline-none focus:border-brand-500">
+          <option value="day">일별</option>
+          <option value="week">주별</option>
+          <option value="month">월별</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+      <div class="rounded-2xl bg-slate-50 p-3"><div class="text-[11px] text-slate-500">총 비용</div><div class="text-xl font-bold text-brand-600" id="cTotalKrw">₩0</div></div>
+      <div class="rounded-2xl bg-slate-50 p-3"><div class="text-[11px] text-slate-500">총 호출</div><div class="text-xl font-bold" id="cCalls">0</div></div>
+      <div class="rounded-2xl bg-slate-50 p-3"><div class="text-[11px] text-slate-500">총 토큰</div><div class="text-xl font-bold" id="cTokens">0</div></div>
+      <div class="rounded-2xl bg-slate-50 p-3"><div class="text-[11px] text-slate-500">과정안 1건당 평균 <span class="text-slate-400">(완성)</span></div><div class="text-xl font-bold" id="cAvg">₩0</div></div>
+      <div class="rounded-2xl bg-slate-50 p-3"><div class="text-[11px] text-slate-500">세션 수 <span class="text-slate-400">(시작)</span></div><div class="text-xl font-bold text-slate-700" id="cSessions">0</div></div>
+    </div>
+    <div class="h-64"><canvas id="costChart"></canvas></div>
+    <div class="mt-4">
+      <h3 class="text-xs font-semibold text-slate-600 mb-1">모델별 <span class="font-normal text-slate-400">(선택 기간)</span></h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs"><thead class="text-slate-500 border-b">
+          <tr><th class="text-left py-1.5 px-2">모델</th><th class="text-right px-2">호출</th><th class="text-right px-2">토큰</th><th class="text-right px-2">비용(₩)</th></tr>
+        </thead><tbody id="byModelBody"></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- HWPX 목록 -->
+  <section class="bg-white rounded-3xl shadow-card p-5">
+    <div class="flex items-center gap-2 mb-3">
+      <h2 class="text-sm font-semibold">📄 생성된 HWPX <span class="font-normal text-[11px] text-slate-400">(컬럼을 클릭하면 정렬)</span></h2>
+      <span id="fileCount" class="text-[11px] text-slate-400 ml-1"></span>
+      <button id="refreshBtn" class="ml-auto text-xs px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50">↻ 새로고침</button>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead class="text-slate-500 border-b bg-white" id="fileHead"></thead>
+        <tbody id="fileBody"></tbody>
+      </table>
+    </div>
+    <p id="fileEmpty" class="text-xs text-slate-400 py-6 text-center hidden">아직 저장된 과정안이 없습니다.</p>
+  </section>
+</div>
+
+<!-- ── 워크플로 / 프롬프트 문서 모달 ── -->
+<div id="workflowModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div id="workflowOverlay" class="absolute inset-0 bg-black/40"></div>
+  <div class="relative bg-white rounded-3xl shadow-card w-full max-w-3xl max-h-[85vh] flex flex-col">
+    <header class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+      <h2 class="text-base font-semibold">📋 챗봇 워크플로 &amp; 프롬프트</h2>
+      <button id="workflowClose" class="text-slate-400 hover:text-slate-700 text-xl leading-none px-2">✕</button>
+    </header>
+    <div id="workflowBody" class="overflow-y-auto px-6 py-4 text-sm text-slate-700 space-y-4">
+      <p class="text-slate-400">불러오는 중…</p>
+    </div>
+  </div>
+</div>
+
+<script src="./admin.js?v=10"></script>
+</body>
+</html>

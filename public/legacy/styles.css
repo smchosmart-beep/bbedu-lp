@@ -1,0 +1,294 @@
+/* ── 채팅 말풍선 ── */
+.msg-bubble {
+  border-radius: 14px;
+  padding: 12px 14px;
+  line-height: 1.55;
+  font-size: 14px;
+  max-width: 100%;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.msg-bot    { background: #fff; border: 1px solid #e2e8f0; }
+.msg-user   { background: #10b981; color: #fff; }
+
+/* ── 시작 화면 기본정보 폼 ── */
+.sf-label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+.sf-field {
+  width: 100%; padding: 9px 11px;
+  border: 1.5px solid #e2e8f0; border-radius: 10px;
+  font-size: 14px; font-family: inherit; color: #1e293b; background: #fff;
+  transition: border-color .15s;
+}
+.sf-field:focus { outline: none; border-color: #10b981; }
+.sf-submit {
+  width: 100%; margin-top: 2px; padding: 11px;
+  border: none; border-radius: 12px;
+  background: #10b981; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: background .15s, opacity .15s;
+}
+.sf-submit:hover:not(:disabled) { background: #059669; }
+.sf-submit:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── 빠른 선택 버튼 ── */
+.choice-btn {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  font-size: 12.5px;
+  color: #334155;
+  cursor: pointer;
+}
+.choice-btn:hover { background: #ecfdf5; border-color: #10b981; color: #059669; }
+
+/* ── 진행 바 ── */
+.step-pill { flex: 1; height: 4px; border-radius: 999px; background: #e2e8f0; }
+.step-pill.done   { background: #10b981; }
+
+/* ── 입력 영역 ── */
+textarea#input { min-height: 38px; max-height: 160px; }
+
+/* ── 마크다운 ── */
+.markdown { white-space: normal; }
+.markdown p  { margin: 4px 0; }
+.markdown ul { list-style: disc;    padding-left: 1.2em; margin: 4px 0; }
+.markdown ol { list-style: decimal; padding-left: 1.4em; margin: 4px 0; }
+.markdown li { margin: 2px 0; }
+.markdown li > ul, .markdown li > ol { margin: 2px 0; }
+.markdown strong   { font-weight: 700; color: #0f172a; }
+.markdown em       { font-style: italic; }
+.markdown code     { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+.markdown pre      { background: #0f172a; color: #e2e8f0; padding: 8px 10px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+.markdown pre code { background: transparent; color: inherit; padding: 0; }
+.markdown h1, .markdown h2, .markdown h3, .markdown h4 { margin: 8px 0 4px; font-weight: 700; color: #0f172a; }
+.markdown h1 { font-size: 1.15em; }
+.markdown h2 { font-size: 1.08em; }
+.markdown h3 { font-size: 1.02em; }
+.markdown blockquote { border-left: 3px solid #cbd5e1; padding-left: 8px; color: #475569; margin: 4px 0; }
+.markdown a  { color: #059669; text-decoration: underline; }
+.markdown table { border-collapse: collapse; margin: 4px 0; font-size: 12.5px; }
+.markdown th, .markdown td { border: 1px solid #cbd5e1; padding: 3px 6px; }
+.markdown hr { border: none; border-top: 1px solid #e2e8f0; margin: 6px 0; }
+
+/* ── 탐구 질문 선택 카드 ── */
+.tangoo-card { padding: 12px 14px; white-space: normal; }
+.tangoo-intro { margin-bottom: 8px; }
+.tangoo-options { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+
+.tangoo-option {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  max-width: 100%;
+  padding: 6px 10px; border-radius: 8px;
+  border: 1.5px solid #e2e8f0; background: #fff;
+  transition: border-color .15s, background .15s;
+  font-size: 13px; line-height: 1.4; color: #1e293b;
+  user-select: none;
+}
+.tangoo-option span { word-break: break-word; }
+.tangoo-option:hover  { border-color: #6ee7b7; background: #f0fdfa; }
+.tangoo-option.selected { border-color: #10b981; background: #ecfdf5; }
+
+.tangoo-option input[type="radio"],
+.tangoo-option input[type="checkbox"] {
+  margin-top: 3px; flex-shrink: 0;
+  width: 16px; height: 16px; accent-color: #10b981; cursor: pointer;
+}
+
+.tangoo-custom-label { align-items: center; color: #475569; font-style: italic; }
+
+.tangoo-textarea {
+  display: none; width: 100%; margin-top: 6px;
+  padding: 8px 10px; border: 1.5px solid #cbd5e1; border-radius: 7px;
+  font-size: 13px; font-family: inherit; resize: vertical; min-height: 60px;
+  transition: border-color .15s;
+}
+.tangoo-textarea:focus { outline: none; border-color: #10b981; }
+
+.tangoo-submit {
+  padding: 8px 18px; border-radius: 8px;
+  background: #10b981; color: #fff;
+  font-size: 13px; font-weight: 600; border: none; cursor: pointer;
+  transition: background .15s, opacity .15s;
+}
+.tangoo-submit:hover:not(:disabled) { background: #059669; }
+.tangoo-submit:disabled { opacity: .35; cursor: not-allowed; }
+.tangoo-submit.done { background: #16a34a; opacity: 1 !important; cursor: default; }
+
+.tangoo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tangoo-regen { padding: 8px 14px; }
+.tangoo-regen:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── 성취기준 검색하여 추가 ── */
+.tangoo-search { margin: 2px 0 8px; }
+.tangoo-search-btn:disabled { opacity: .55; cursor: not-allowed; }
+.tangoo-std-select {
+  width: 100%; margin-top: 6px; padding: 8px 10px;
+  border: 1.5px solid #cbd5e1; border-radius: 7px;
+  font-size: 13px; font-family: inherit; background: #fff; color: #334155;
+}
+.tangoo-std-select:focus { outline: none; border-color: #10b981; }
+
+/* ── 미리보기 성취기준 '+ 추가' ── */
+.std-add-btn {
+  font-size: 10.5px; font-weight: 600; color: #0f766e; vertical-align: middle;
+  margin-left: 6px; padding: 1px 8px; border-radius: 6px;
+  border: 1px dashed #5eead4; background: #f0fdfa; cursor: pointer;
+}
+.std-add-btn:hover { background: #d1fae5; border-color: #10b981; }
+.std-add-sel {
+  width: 100%; margin-top: 6px; padding: 6px 8px;
+  border: 1.5px solid #cbd5e1; border-radius: 6px;
+  font-size: 12.5px; background: #fff; color: #334155;
+}
+.std-add-sel:focus { outline: none; border-color: #10b981; }
+
+/* ── 로딩 스피너 ── */
+.spinner {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid #cbd5e1; border-top-color: #10b981;
+  border-radius: 50%; animation: spin .8s linear infinite;
+  vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ══════════════════════════════════════
+   우측 과정안 미리보기 패널 — 템플릿(표) 레이아웃
+   ══════════════════════════════════════ */
+
+.plan-doc { font-size: 12px; color: #1e293b; }
+.plan-doc-title {
+  text-align: center;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 2px 0 14px;
+}
+
+/* 공통 표 */
+.plan-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-bottom: 12px;
+}
+.plan-tbl th,
+.plan-tbl td {
+  border: 1px solid #c5cedd;
+  padding: 5px 7px;
+  vertical-align: top;
+  word-break: break-word;
+}
+.plan-tbl th {
+  background: #e7ecf5;
+  font-weight: 700;
+  color: #33415c;
+  font-size: 11.5px;
+  text-align: center;
+  vertical-align: middle;
+  line-height: 1.35;
+}
+.th-sub { font-weight: 500; font-size: 10px; color: #64748b; }
+.th-vert {
+  width: 8%;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+}
+.t-paren { color: #64748b; }
+/* 평가 범주 셀: 범주 / (평가방법) 줄바꿈 + 가운데 정렬 */
+.t-eval-cat { text-align: center; }
+/* (평가방법)을 다음 줄 블록으로. 방법 셀은 inline이라 '(', 내용, ')'이 한 덩어리로 함께 줄바꿈됨. */
+.t-eval-cat .t-paren { display: block; margin-top: 2px; }
+.tcell.t-minline { display: inline; padding: 0; margin: 0; }
+
+/* 편집 가능한 셀 */
+.tcell {
+  min-height: 1.4em;
+  color: #1e293b;
+  white-space: pre-wrap;
+  word-break: break-word;
+  outline: none;
+  border-radius: 3px;
+  padding: 1px 3px;
+  margin: -1px -3px;
+  cursor: text;
+  transition: background 0.1s;
+}
+.tcell.t-inline { display: inline-block; min-width: 1.6em; vertical-align: top; }
+
+/* 방금 update_plan으로 갱신된 셀 강조 — 민트 배경에서 서서히 사라짐 */
+@keyframes cellUpdated {
+  0%   { background: #a7f3d0; box-shadow: 0 0 0 2px #10b98166; }
+  100% { background: transparent; box-shadow: 0 0 0 0 transparent; }
+}
+.tcell.cell-updated { animation: cellUpdated 1.8s ease-out; }
+.tcell:hover { background: #f0fdfa; }
+.tcell:focus { background: #ecfdf5; box-shadow: 0 0 0 1.5px #10b98155; }
+.tcell:empty::before {
+  content: attr(data-placeholder);
+  color: #cbd5e1;
+  font-style: italic;
+  pointer-events: none;
+}
+
+/* 교수·학습 활동 표 */
+.plan-act-tbl td { font-size: 11.5px; line-height: 1.5; }
+.t-stage {
+  text-align: center;
+  background: #f3f6fa;
+  vertical-align: middle !important;
+}
+.t-stage-name { font-weight: 700; color: #33415c; }
+.t-form-label { font-size: 9.5px; color: #94a3b8; margin-top: 5px; }
+.tcell.t-form {
+  font-size: 10.5px; color: #475569; text-align: center;
+  background: #fff; border: 1px solid #d8e0ea; border-radius: 4px;
+  padding: 2px 4px; margin: 2px 0 0;
+}
+.tcell.t-form:hover { background: #f0fdfa; }
+.tcell.t-form:focus { background: #ecfdf5; }
+/* 모형 단계명 — 학습형태 위, 민트 강조 */
+.t-step-label { font-size: 9.5px; color: #94a3b8; margin-top: 4px; }
+.tcell.t-step {
+  font-size: 10.5px; font-weight: 600; color: #0f766e; text-align: center;
+  background: #ecfdf5; border: 1px solid #99f6e4; border-radius: 4px;
+  padding: 2px 4px; margin: 2px 0 0;
+}
+.tcell.t-step:hover { background: #d1fae5; }
+.tcell.t-step:focus { background: #d1fae5; }
+.t-time { text-align: center; }
+.t-act-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 4px; margin-bottom: 3px;
+}
+.t-act-line { flex: 1; min-width: 0; }
+.t-act-no { font-weight: 700; color: #065f46; font-size: 11px; margin-right: 3px; }
+.t-actname { font-weight: 600; color: #0f172a; }
+
+/* 활동 추가 / 삭제 버튼 */
+.plan-del-sub-btn {
+  font-size: 10px; color: #94a3b8; cursor: pointer;
+  border: none; background: none; padding: 0 4px; border-radius: 4px;
+  transition: color .1s, background .1s;
+}
+.plan-del-sub-btn:hover { color: #ef4444; background: #fee2e2; }
+.plan-add-sub-btn.t-mini {
+  display: inline-block; margin-top: 6px;
+  font-size: 10px; color: #10b981; cursor: pointer;
+  border: 1px dashed #6ee7b7; background: #f0fdfa;
+  padding: 2px 7px; border-radius: 6px;
+  transition: background .1s, border-color .1s;
+}
+.plan-add-sub-btn.t-mini:hover { background: #ecfdf5; border-color: #10b981; }
+
+/* ── 자료·유의점·평가 약어 기호 — (자) (유) (평) 괄호 표시 ──
+   텍스트 노드는 "자/유/평"만 유지(getEditableText 복원·HWPX 호환), 괄호는 CSS content. */
+.sym-c {
+  font-weight: 700;
+  font-style: normal;
+  color: #475569;
+  white-space: nowrap;
+}
+.sym-c::before { content: "("; }
+.sym-c::after  { content: ")"; }
+/* 원래 텍스트 보존용 (getEditableText에서 추출됨) */
+.sym-h { display: none; }
