@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { generateText, jsonSchema, tool as aiTool } from "ai";
 import {
   adaptMessages,
+  escalateTier,
   estimateCostUsd,
   geminiToolsToOpenAI,
   hasStageConflict,
