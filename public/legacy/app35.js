@@ -1241,6 +1241,7 @@ function saveState() {
       subEditedStages: [...state.subEditedStages],
       usage: state.usage,
       interactionId: state.interactionId,   // [USE_INTER] 서버 대화 참조 ID
+      runId: state.runId,
     }));
   } catch (e) { /* 용량 초과 등은 무시 */ }
 }
