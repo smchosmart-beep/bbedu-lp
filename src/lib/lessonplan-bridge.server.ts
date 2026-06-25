@@ -20,32 +20,53 @@ export function resolveModelId(raw?: string | null): string {
   return VENDOR_PREFIX_MAP[raw] ?? `google/${raw}`;
 }
 
-// === 비용 최적화: 2-Tier 라우팅 ===
+// === 비용 최적화: 3-Tier 라우팅 ===
+// PRIMARY (본문·검토)  : gemini-3.5-flash  — 품질 최우선
+// MID     (창의·정형)  : gemini-3-flash-preview — 3배 저렴, 폴백 안전망 있음
+// LITE    (RAG·선택)   : gemini-3-flash-preview — 후속 turn에서 flash-lite로 승격 예정
 export const PRIMARY_MODEL = "google/gemini-3.5-flash";
-export const CHEAP_MODEL = "google/gemini-3-flash-preview";
+export const MID_MODEL = "google/gemini-3-flash-preview";
+export const LITE_MODEL = "google/gemini-3-flash-preview";
+export const CHEAP_MODEL = MID_MODEL; // 하위 호환
 export const VERIFY_A_MODEL = "google/gemini-2.5-flash-lite";
 export const VERIFY_B_MODEL = "google/gemini-3-flash-preview";
 
-// PRIMARY 라우팅 단계: 5(탐구질문), 6(평가 sticky), 7(학습목표), 9(전개 세트), 10(본문), 11(수업자의도/검토)
-const PRIMARY_STAGES = new Set([5, 6, 7, 9, 10, 11]);
+// 단계별 라우팅 매핑
+const PRIMARY_STAGES = new Set([10, 11]); // 본문, 수업자의도/검토
+const MID_STAGES = new Set([5, 6, 7, 9]); // 탐구질문, 평가, 학습목표, 전개 세트
+const LITE_STAGES = new Set([1, 2, 3, 4, 8]); // 기초정보·성취·핵심·역량·모형 (RAG 단순 선택)
 
-export type Tier = "PRIMARY" | "CHEAP";
+export type Tier = "PRIMARY" | "MID" | "LITE";
 
-// 롤백 스위치 — true 로 바꾸면 전부 PRIMARY
+// 비상 롤백 스위치
 const FORCE_PRIMARY = false;
+// Stage 6 평가가 MID에서 회귀하면 true 로 — 단 한 단계만 PRIMARY 복귀
+const STAGE6_FORCE_PRIMARY = false;
 
 export function pickTier(stage: number | null | undefined): Tier {
   if (FORCE_PRIMARY) return "PRIMARY";
-  if (!stage || !Number.isFinite(stage)) return "PRIMARY"; // SSoT 누락 → PRIMARY fallback
-  return PRIMARY_STAGES.has(stage) ? "PRIMARY" : "CHEAP";
+  if (!stage || !Number.isFinite(stage)) return "PRIMARY"; // SSoT 누락 → PRIMARY fallback (안전)
+  if (stage === 6 && STAGE6_FORCE_PRIMARY) return "PRIMARY";
+  if (PRIMARY_STAGES.has(stage)) return "PRIMARY";
+  if (MID_STAGES.has(stage)) return "MID";
+  if (LITE_STAGES.has(stage)) return "LITE";
+  return "PRIMARY"; // 알 수 없는 stage → 안전하게 PRIMARY
+}
+
+// 한 단계만 격상 (LITE→MID, MID→PRIMARY, PRIMARY→PRIMARY)
+export function escalateTier(tier: Tier): Tier {
+  if (tier === "LITE") return "MID";
+  if (tier === "MID") return "PRIMARY";
+  return "PRIMARY";
 }
 
 export function pickModelForTier(tier: Tier, requested?: string | null): string {
   if (tier === "PRIMARY") return requested ? resolveModelId(requested) : PRIMARY_MODEL;
-  return CHEAP_MODEL;
+  if (tier === "MID") return MID_MODEL;
+  return LITE_MODEL;
 }
 
-// T1: 최근 메시지에서 stage 와 후속 단계 필드명 충돌 감지 → PRIMARY 강등
+// T1: 최근 메시지에서 stage 와 후속 단계 필드명 충돌 감지 → 한 단계 격상
 export function hasStageConflict(stage: number | null | undefined, messages: unknown): boolean {
   if (!stage || !Array.isArray(messages)) return false;
   const lastFew = messages.slice(-3);
@@ -63,6 +84,7 @@ export function hasStageConflict(stage: number | null | undefined, messages: unk
 // T2: tier 별 출력 토큰 / 온도
 export function tierConfig(tier: Tier) {
   if (tier === "PRIMARY") return { temperature: 0.7, maxOutputTokens: 16000 };
+  if (tier === "MID") return { temperature: 0.7, maxOutputTokens: 12000 };
   return { temperature: 0.5, maxOutputTokens: 8000 };
 }
 
