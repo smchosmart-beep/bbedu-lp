@@ -126,16 +126,18 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
         let tier: Tier;
         if (forceTier === "PRIMARY" || forceTier === "MID" || forceTier === "LITE") {
           tier = forceTier;
-        } else if (json && model) {
-          // 검수 등 명시 모델 — 클라가 요청한 model 그대로 사용 (tier 무시)
+        } else if (json && model && stage !== 99 && stage !== 100) {
+          // 검수(99)·최종검토(100)는 stage 라우팅(MID)을 따르고,
+          // 그 외 JSON 호출은 호환을 위해 호출자가 지정한 model 그대로 사용 (tier=PRIMARY)
           tier = "PRIMARY";
         } else {
           tier = pickTier(typeof stage === "number" ? stage : null);
           if (tier !== "PRIMARY" && hasStageConflict(stage, messages)) tier = escalateTier(tier);
         }
 
-        // 모델 결정: json+model 명시면 그 모델, 아니면 tier 별 디폴트
-        const resolvedModel = json && model ? resolveModelId(model) : pickModelForTier(tier, model);
+        // 모델 결정: 위에서 PRIMARY 로 떨어진 명시 JSON 호출만 클라 model 사용
+        const useExplicitModel = json && !!model && stage !== 99 && stage !== 100 && forceTier === undefined;
+        const resolvedModel = useExplicitModel ? resolveModelId(model!) : pickModelForTier(tier, model);
         const tcfg = tierConfig(tier);
         const openaiTools = geminiToolsToOpenAI(tools);
         const tokenCap = Math.max(

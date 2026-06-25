@@ -31,22 +31,29 @@ export const CHEAP_MODEL = MID_MODEL; // 하위 호환
 export const VERIFY_A_MODEL = "google/gemini-2.5-flash-lite";
 export const VERIFY_B_MODEL = "google/gemini-3-flash-preview";
 
-// 단계별 라우팅 매핑
-const PRIMARY_STAGES = new Set([10, 11]); // 본문, 수업자의도/검토
-const MID_STAGES = new Set([5, 6, 7, 9]); // 탐구질문, 평가, 학습목표, 전개 세트
+// 단계별 라우팅 매핑 (1단계 보수: Stage 9·10만 PRIMARY)
+const PRIMARY_STAGES = new Set([9, 10]); // 전개 세트, 본문 전개
+const MID_STAGES = new Set([5, 6, 7, 11]); // 탐구질문, 평가, 학습목표, 수업자의도
 const LITE_STAGES = new Set([1, 2, 3, 4, 8]); // 기초정보·성취·핵심·역량·모형 (RAG 단순 선택)
+// 검수(99)·최종검토(100)는 stage 매칭으로 MID 처리 (아래 pickTier 참조)
 
 export type Tier = "PRIMARY" | "MID" | "LITE";
 
 // 비상 롤백 스위치
 const FORCE_PRIMARY = false;
-// Stage 6 평가가 MID에서 회귀하면 true 로 — 단 한 단계만 PRIMARY 복귀
+// Stage 별 PRIMARY 강제 복귀 (회귀 시 true 로 1줄 롤백)
 const STAGE6_FORCE_PRIMARY = false;
+const STAGE11_FORCE_PRIMARY = false; // 수업자의도
+const VERIFY_FORCE_PRIMARY = false;  // 검수(99) · 최종검토(100)
 
 export function pickTier(stage: number | null | undefined): Tier {
   if (FORCE_PRIMARY) return "PRIMARY";
   if (!stage || !Number.isFinite(stage)) return "PRIMARY"; // SSoT 누락 → PRIMARY fallback (안전)
   if (stage === 6 && STAGE6_FORCE_PRIMARY) return "PRIMARY";
+  if (stage === 11 && STAGE11_FORCE_PRIMARY) return "PRIMARY";
+  if ((stage === 99 || stage === 100) && VERIFY_FORCE_PRIMARY) return "PRIMARY";
+  // 검수·최종검토는 명시 매핑으로 MID — 현재는 unknown→PRIMARY로 떨어지던 경로
+  if (stage === 99 || stage === 100) return "MID";
   if (PRIMARY_STAGES.has(stage)) return "PRIMARY";
   if (MID_STAGES.has(stage)) return "MID";
   if (LITE_STAGES.has(stage)) return "LITE";
