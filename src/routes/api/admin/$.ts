@@ -162,30 +162,73 @@ export const Route = createFileRoute("/api/admin/$")({
           });
         }
         if (path === "/costs") {
-          const variant = new URL(request.url).searchParams.get("variant");
-          const byDay = await loadCostByDay(variant);
-          return Response.json({ byDay, krwPerUsd: KRW_PER_USD });
+          const url = new URL(request.url);
+          const variant = url.searchParams.get("variant");
+          const from = url.searchParams.get("from"); // YYYY-MM-DD (KST)
+          const to = url.searchParams.get("to");
+          const fromISO = from ? new Date(from + "T00:00:00+09:00").toISOString() : null;
+          const toISO = to ? new Date(to + "T23:59:59+09:00").toISOString() : null;
+          const byDay = await loadCostByDay(variant, fromISO, toISO);
+          return Response.json({ byDay, krwPerUsd: KRW_PER_USD, pricing: PRICING });
         }
         if (path === "/files") {
           try {
             const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
             const { data, error } = await supabaseAdmin
               .from("hwpx_files")
-              .select("id, file_name, created_at, model, cost_krw, usage, meta")
+              .select("id, file_name, created_at, model, cost_krw, cost_usd, usage, meta")
               .order("created_at", { ascending: false })
               .limit(200);
             if (error) {
               return Response.json({ items: [], error: error.message });
             }
+            // run_id별로 ai_usage_log를 lookup해서 콜 단위 SSoT 재계산값을 함께 반환.
+            const runIds = (data ?? [])
+              .map((r) => {
+                const m = (r.meta ?? {}) as Record<string, unknown>;
+                const rid = m.run_id ?? m.runId;
+                return typeof rid === "string" && rid ? rid : null;
+              })
+              .filter((x): x is string => !!x);
+            const krwLoggedByRun: Record<string, { usd: number; calls: number; byModel: Record<string, { prompt: number; output: number; calls: number; usd: number }> }> = {};
+            if (runIds.length > 0) {
+              const { data: logs } = await supabaseAdmin
+                .from("ai_usage_log")
+                .select("run_id, model, prompt_tokens, output_tokens")
+                .in("run_id", runIds)
+                .limit(50000);
+              for (const row of logs ?? []) {
+                const r = row as { run_id: string; model: string; prompt_tokens: number; output_tokens: number };
+                if (!r.run_id) continue;
+                const mid = resolveModelId(r.model ?? "unknown");
+                const p = Number(r.prompt_tokens ?? 0);
+                const o = Number(r.output_tokens ?? 0);
+                const usd = estimateCostUsd(mid, p, o);
+                const entry = (krwLoggedByRun[r.run_id] ||= { usd: 0, calls: 0, byModel: {} });
+                entry.usd += usd;
+                entry.calls += 1;
+                const mb = (entry.byModel[mid] ||= { prompt: 0, output: 0, calls: 0, usd: 0 });
+                mb.prompt += p; mb.output += o; mb.calls += 1; mb.usd += usd;
+              }
+            }
             const items = (data ?? []).map((r) => {
               const u = (r.usage ?? {}) as Record<string, unknown>;
               const m = (r.meta ?? {}) as Record<string, unknown>;
+              const rid = (m.run_id ?? m.runId) as string | undefined;
+              const logged = rid ? krwLoggedByRun[rid] : null;
+              const krwLogged = logged ? Math.round(logged.usd * KRW_PER_USD) : null;
+              const byModelClient = (u.byModel ?? null) as Record<string, unknown> | null;
               return {
                 id: r.id,
                 fileName: r.file_name,
                 createdAt: r.created_at,
                 모델: r.model ?? "",
                 krw: Number(r.cost_krw ?? 0),
+                krwLogged,
+                loggedCalls: logged ? logged.calls : 0,
+                byModelLogged: logged ? logged.byModel : null,
+                byModelClient,
+                runId: rid ?? null,
                 calls: Number(u.calls ?? 0),
                 토큰: {
                   prompt: Number(u.prompt ?? 0),
@@ -200,10 +243,29 @@ export const Route = createFileRoute("/api/admin/$")({
                 수업주제: String(m["수업주제"] ?? ""),
               };
             });
-            return Response.json({ items });
+            return Response.json({ items, krwPerUsd: KRW_PER_USD });
           } catch (e) {
             const message = e instanceof Error ? e.message : String(e);
             return Response.json({ items: [], error: message });
+          }
+        }
+        // 진단 — 최근 N시간 동안 ai_usage_log insert 건수(빨강 배너용)
+        if (path === "/diag") {
+          try {
+            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+            const url = new URL(request.url);
+            const variant = url.searchParams.get("variant");
+            const hours = Math.max(1, Math.min(168, Number(url.searchParams.get("hours") ?? 24)));
+            const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+            let q = supabaseAdmin.from("ai_usage_log").select("id", { count: "exact", head: true }).gte("ts", since);
+            if (variant) q = q.eq("variant", variant);
+            const { count } = await q;
+            let pq = supabaseAdmin.from("hwpx_files").select("id", { count: "exact", head: true }).gte("created_at", since);
+            if (variant) pq = pq.eq("variant", variant);
+            const { count: plansCount } = await pq;
+            return Response.json({ hours, logRows: count ?? 0, plans: plansCount ?? 0 });
+          } catch (e) {
+            return Response.json({ error: e instanceof Error ? e.message : String(e) });
           }
         }
         // /files/{id}/download
