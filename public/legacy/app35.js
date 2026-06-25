@@ -1282,6 +1282,7 @@ function loadSavedState() {
     state.callSeq = s.callSeq || 0;
     state.subEditedStages = new Set(s.subEditedStages || []);
     state.usage = s.usage || { calls: 0, prompt: 0, output: 0, cached: 0 };
+    state.usageByModel = s.usageByModel || {};
     if (s.runId) state.runId = s.runId;
     // 이미 채워진 CHOICE 항목은 확정된 것으로 보고 가드를 복원(새로고침 후 되돌아가기 반복 방지)
     state.confirmedChoices = new Set([...CHOICE_PLAN_KEYS].filter((k) => state.partialPlan[k] != null && String(state.partialPlan[k]).trim() !== ""));
