@@ -5,8 +5,14 @@ import {
   adaptMessages,
   estimateCostUsd,
   geminiToolsToOpenAI,
+  hasStageConflict,
+  isMalformedSignal,
+  pickModelForTier,
+  pickTier,
   resolveModelId,
+  tierConfig,
   toolCallsToGemini,
+  type Tier,
 } from "@/lib/lessonplan-bridge.server";
 import { createLovableAiGatewayProvider } from "@/lib/ai-gateway.server";
 
@@ -68,6 +74,8 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           json,
           system,
           user,
+          stage,
+          forceTier,
         } = body as {
           messages?: unknown;
           tools?: unknown;
@@ -77,6 +85,8 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           json?: boolean;
           system?: string;
           user?: string;
+          stage?: number;
+          forceTier?: Tier;
         };
 
         // Build messages array
@@ -96,11 +106,31 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           return Response.json({ error: "user 메시지가 필요합니다" }, { status: 400 });
         }
 
-        const resolvedModel = resolveModelId(model);
+        // === Tier 결정 (T1 충돌 가드 포함) ===
+        // - json 요청(검수)은 호출자가 forceTier 또는 명시 model 로 직접 모델 선택
+        // - 그 외 일반 챗 호출은 stage 기반 PRIMARY/CHEAP 라우팅
+        let tier: Tier;
+        if (forceTier === "PRIMARY" || forceTier === "CHEAP") {
+          tier = forceTier;
+        } else if (json && model) {
+          // 검수 등 명시 모델 — 클라가 요청한 model 그대로 사용 (tier 무시)
+          tier = "PRIMARY";
+        } else {
+          tier = pickTier(typeof stage === "number" ? stage : null);
+          if (tier === "CHEAP" && hasStageConflict(stage, messages)) tier = "PRIMARY";
+        }
+
+        // 모델 결정: json+model 명시면 그 모델, 아니면 tier 별 디폴트
+        const resolvedModel = json && model ? resolveModelId(model) : pickModelForTier(tier, model);
+        const tcfg = tierConfig(tier);
         const openaiTools = geminiToolsToOpenAI(tools);
-        const tokenCap = Math.max(MIN_TOKENS, Math.min(Number(maxTokens) || 4000, MAX_TOKENS));
+        const tokenCap = Math.max(
+          MIN_TOKENS,
+          Math.min(Number(maxTokens) || tcfg.maxOutputTokens, MAX_TOKENS, tcfg.maxOutputTokens),
+        );
 
         const gateway = createLovableAiGatewayProvider(apiKey);
+
 
         const start = Date.now();
         try {
@@ -127,20 +157,51 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
             }
           }
 
-          const result = await generateText({
-            model: gateway(resolvedModel),
-            messages: oaiMessages as never,
-            maxOutputTokens: tokenCap,
-            temperature: 0.7,
-            ...(aiTools ? { tools: aiTools as never, toolChoice: "auto" as never } : {}),
-            ...(json
-              ? ({
-                  providerOptions: {
-                    openaiCompatible: { response_format: { type: "json_object" } },
-                  },
-                } as never)
-              : {}),
-          });
+          // === 실행 + MALFORMED 시 PRIMARY 재시도 ===
+          let modelInUse = resolvedModel;
+          let tcfgInUse = tcfg;
+          let result;
+          let triedFallback = false;
+          // eslint-disable-next-line no-constant-condition
+          while (true) {
+            try {
+              result = await generateText({
+                model: gateway(modelInUse),
+                messages: oaiMessages as never,
+                maxOutputTokens: tokenCap,
+                temperature: tcfgInUse.temperature,
+                ...(aiTools ? { tools: aiTools as never, toolChoice: "auto" as never } : {}),
+                ...(json
+                  ? ({
+                      providerOptions: {
+                        openaiCompatible: { response_format: { type: "json_object" } },
+                      },
+                    } as never)
+                  : {}),
+              });
+              // CHEAP 시도 후 결과가 비어 있거나 JSON 모드인데 파싱 불가 → PRIMARY 폴백
+              if (!triedFallback && tier === "CHEAP" && json) {
+                try {
+                  JSON.parse(result.text || "");
+                } catch {
+                  triedFallback = true;
+                  modelInUse = pickModelForTier("PRIMARY", model);
+                  tcfgInUse = tierConfig("PRIMARY");
+                  continue;
+                }
+              }
+              break;
+            } catch (innerErr) {
+              const msg = innerErr instanceof Error ? innerErr.message : String(innerErr);
+              if (!triedFallback && tier === "CHEAP" && isMalformedSignal(msg)) {
+                triedFallback = true;
+                modelInUse = pickModelForTier("PRIMARY", model);
+                tcfgInUse = tierConfig("PRIMARY");
+                continue;
+              }
+              throw innerErr;
+            }
+          }
 
           const latency = Date.now() - start;
           const usage = result.usage ?? {};
@@ -149,10 +210,10 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           const totalTokens = Number(
             (usage as Record<string, unknown>).totalTokens ?? promptTokens + outputTokens,
           );
-          const costUsd = estimateCostUsd(resolvedModel, promptTokens, outputTokens);
+          const costUsd = estimateCostUsd(modelInUse, promptTokens, outputTokens);
 
           void logUsage({
-            model: resolvedModel,
+            model: modelInUse,
             variant: variant ?? null,
             prompt: promptTokens,
             output: outputTokens,
@@ -195,7 +256,7 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
             }
           }
 
-          // Legacy shape — usage uses Gemini camelCase keys app35.js reads
+          // Legacy shape
           return Response.json({
             content: result.text || "",
             functionCalls,
@@ -218,7 +279,6 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
             cost_usd: 0,
             error: message.slice(0, 500),
           });
-          // Try to classify rate-limit / blocked / etc by message; default 502
           const status = /\b429\b/.test(message) ? 429 : /\b402\b/.test(message) ? 402 : 502;
           return Response.json({ error: `AI Gateway 오류`, detail: message.slice(0, 500) }, { status });
         }

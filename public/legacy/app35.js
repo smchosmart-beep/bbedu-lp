@@ -1037,15 +1037,46 @@ function llmErrorMessage(err) {
   }
 }
 
+/* === 비용 최적화: 현재 진행 단계 추정 (1~11) ===
+   서버 라우팅(PRIMARY/CHEAP)의 SSoT. partialPlan 채워진 정도로 단계 판정. */
+function detectStage(p) {
+  p = p || {};
+  if (!p.교과 || !p.학년 || !p.단원) return 1;
+  if (!p.성취기준) return 2;
+  if (!p.핵심아이디어) return 3;
+  if (!p.교과역량) return 4;
+  if (!p.탐구질문) return 5;
+  // 6: 평가 — 어느 한 평가{i} 필드라도 미완이면 6 (sticky)
+  const evalNum = parseInt(p.평가_num) || 0;
+  if (evalNum === 0) return 6;
+  for (let i = 1; i <= evalNum; i++) {
+    if (!p[`평가${i}_요소`] || !p[`평가${i}_방법`] ||
+        !p[`평가${i}_수준상`] || !p[`평가${i}_수준중`] || !p[`평가${i}_수준하`] ||
+        !p[`평가${i}_피드백`]) return 6;
+  }
+  if (!p.학습목표 || !p.학습주제) return 7;
+  if (!p.교수학습모형) return 8;
+  if (!p["전개_활동명"] && !p["전개_sub1_활동명"]) return 9;
+  const needs10 = !p["도입_교사활동"] || !p["정리_교사활동"];
+  const subs = parseInt(p.전개_num_subs) || 1;
+  if (needs10) return 10;
+  if (subs >= 2) {
+    for (let i = 1; i <= subs; i++) if (!p[`전개_sub${i}_교사활동`]) return 10;
+  } else if (!p["전개_교사활동"]) return 10;
+  if (!p.수업자의도) return 11;
+  return 11;
+}
+
 /* function calling 지원 호출 — { content, functionCalls } 반환. onRetry(n,total,status)로 재시도 진행 통지 */
 async function callLLM(messages, maxTokens = 16000, onRetry = null) {
+  const stage = detectStage(state.partialPlan);
   for (let attempt = 0; ; attempt++) {
     let res;
     try {
       res = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages, tools: TOOLS, maxTokens, model: FORCE_MODEL, variant: VARIANT }),
+        body: JSON.stringify({ messages, tools: TOOLS, maxTokens, model: FORCE_MODEL, variant: VARIANT, stage }),
       });
     } catch (netErr) {
       // 네트워크 실패(서버 도달 못 함) — 일시 오류로 보고 재시도
@@ -1728,36 +1759,58 @@ function doUpdatePlan(args) {
 }
 
 // 완료 직전, 독립 LLM(tools 없는 json 검수)으로 각 셀값이 의미 있는지 점검한다.
-// placeholder/동문서답/깨진 값만 보고. 행정 정보(차시·교과서쪽수·대상학급·일시)는 제외.
+// 비용 최적화 (T 보정): A=2.5-flash-lite(스키마/포맷·저비용) → 이슈 없으면 B=3-flash-preview 로 일관성 재확인,
+//                       A 가 이슈를 잡았으면 그것만 채택(추가 호출 없음). 두 모델 모두 실패하면 3.5-flash 최종 폴백.
+// 행정 정보(차시·교과서쪽수·대상학급·일시)는 제외.
 async function verifyPlanQuality() {
   const fields = {};
   for (const [k, v] of Object.entries(state.partialPlan)) {
     if (v == null || String(v).trim() === "" || ADMIN_FIELDS.includes(k) || /_num/.test(k)) continue;
     fields[k] = v;
   }
-  // 명백한 결함만 검수 — 의미·중복·동문서답 같은 주관 판단을 빼서 비결정 트집(멀쩡한 값을 트집)을 막는다.
   const sys = "너는 초등 교수·학습 과정안 검수자다. 아래 JSON 값 중 '명백히 잘못된 것'만 골라 보고하라.\n" +
     "오직 다음만 문제다: placeholder·임시문구(\"...\",\"예시\",\"내용 입력\",\"TODO\"), 빈 괄호만 있는 값, 글자가 깨졌거나 문장이 중간에 잘린 값.\n" +
     "표현·문체·중복·교육적 적절성·요소 간 유사성·동문서답 여부는 문제로 보지 마라(조금이라도 애매하면 문제 아님으로 처리). 대상학급·일시·차시는 검증 대상이 아니다.\n" +
     "반드시 아래 JSON만 출력하라: {\"issues\":[{\"field\":\"필드명\",\"reason\":\"한 줄 이유\"}]}. 문제가 없으면 {\"issues\":[]}.";
-  const reqBody = { messages: [{ role: "system", content: sys }, { role: "user", content: JSON.stringify(fields) }], json: true, maxTokens: 2000 };
-  // 검수는 별도 LLM. '될 때까지' — gemini-3.5-flash 우선으로 최대 8회 재시도(과부하 503 등), 중간중간 gemini-2.5-flash로 폴백(무한은 브라우저·비용 위험이라 상한).
-  const tryModels = ["gemini-3.5-flash", "gemini-3.5-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
-  for (let i = 0; i < tryModels.length; i++) {
+  const baseBody = { messages: [{ role: "system", content: sys }, { role: "user", content: JSON.stringify(fields) }], json: true, maxTokens: 2000, variant: VARIANT };
+
+  async function callOne(model) {
     try {
       const res = await fetch(API_URL, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...reqBody, model: tryModels[i], variant: VARIANT }),
+        body: JSON.stringify({ ...baseBody, model }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        state.verifyUsd = (state.verifyUsd || 0) + (data._usd || 0);   // 검수 비용 누적 → 저장 시 단건 비용에 합산
-        return { issues: (data.issues || []).filter((i) => i && i.field).map((i) => `${i.field}(${i.reason || "부적절"})`), unavailable: false };
-      }
-    } catch (e) { /* 네트워크 오류 — 다음 시도 */ }
-    if (i < tryModels.length - 1) await sleep(600);
+      if (!res.ok) return { ok: false };
+      const data = await res.json();
+      state.verifyUsd = (state.verifyUsd || 0) + (data._usd || 0);
+      const issues = (data.issues || []).filter((x) => x && x.field).map((x) => `${x.field}(${x.reason || "부적절"})`);
+      return { ok: true, issues };
+    } catch { return { ok: false }; }
   }
-  return { issues: [], unavailable: true };   // 3.5 3회 + 2.5 1회 모두 실패(검수 서버 과부하)
+
+  // A: 2.5-flash-lite (가장 저렴) — 스키마/명백한 결함 1차
+  let a = await callOne("gemini-2.5-flash-lite");
+  if (!a.ok) { await sleep(500); a = await callOne("gemini-2.5-flash-lite"); }   // 일시 오류 1회 재시도
+
+  // A 가 이슈를 잡았으면 그대로 채택 (B 호출 절약)
+  if (a.ok && a.issues.length > 0) return { issues: a.issues, unavailable: false };
+
+  // B: 3-flash-preview (중급, 일관성 재확인). A 가 비어있을 때만 호출.
+  let b = await callOne("gemini-3-flash-preview");
+  if (!b.ok) { await sleep(500); b = await callOne("gemini-3-flash-preview"); }
+
+  if (a.ok && b.ok) {
+    // 두 결과 합집합 (둘 다 본 결함만 보고하고 싶다면 교집합으로 바꿀 수 있음 — 현재는 합집합 = 보수적)
+    const merged = Array.from(new Set([...(a.issues || []), ...(b.issues || [])]));
+    return { issues: merged, unavailable: false };
+  }
+  if (b.ok) return { issues: b.issues, unavailable: false };
+  if (a.ok) return { issues: a.issues, unavailable: false };
+
+  // 둘 다 실패 → 3.5-flash 최종 폴백
+  const c = await callOne("gemini-3.5-flash");
+  if (c.ok) return { issues: c.issues, unavailable: false };
+  return { issues: [], unavailable: true };
 }
 
 /* ── 완료 처리: 완료는 '검토 통과'여야 한다 — 빈 셀 게이트 + 독립 LLM 무의미값 검수를 모두 통과해야 plan 확정 ── */
@@ -1776,7 +1829,7 @@ async function doCompletePlan() {
   if (timeSum > 0 && (timeSum < 38 || timeSum > 42)) {
     return { ok: false, error: `도입·전개·정리 시간 합이 ${timeSum}분입니다. 도입 5분 / 전개 25~30분 / 정리 5분으로 합이 40분이 되도록 시간을 조정해 update_plan한 뒤 다시 complete_plan을 호출하세요.` };
   }
-  // 2) 독립 LLM 품질 검수(3.5-flash '될 때까지' 재시도 → 2.5 폴백). 무의미·placeholder 값이 있으면 완료 거부.
+  // 2) 독립 LLM 품질 검수(A=lite → B=preview, 폴백 3.5-flash). 무의미·placeholder 값이 있으면 완료 거부.
   const v = await verifyPlanQuality();
   if (v.unavailable) {
     return { ok: false, error: "지금 AI 자동 검토가 일시적으로 어려워요(검토 서버가 잠시 붐빕니다). 지금 바로 다시 시도하지 말고, 사용자에게 '잠시 후 다시 완료를 시도해 주세요'라고 안내하세요." };

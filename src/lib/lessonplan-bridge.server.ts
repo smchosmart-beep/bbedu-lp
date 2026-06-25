@@ -20,6 +20,59 @@ export function resolveModelId(raw?: string | null): string {
   return VENDOR_PREFIX_MAP[raw] ?? `google/${raw}`;
 }
 
+// === 비용 최적화: 2-Tier 라우팅 ===
+export const PRIMARY_MODEL = "google/gemini-3.5-flash";
+export const CHEAP_MODEL = "google/gemini-3-flash-preview";
+export const VERIFY_A_MODEL = "google/gemini-2.5-flash-lite";
+export const VERIFY_B_MODEL = "google/gemini-3-flash-preview";
+
+// PRIMARY 라우팅 단계: 5(탐구질문), 6(평가 sticky), 7(학습목표), 9(전개 세트), 10(본문), 11(수업자의도/검토)
+const PRIMARY_STAGES = new Set([5, 6, 7, 9, 10, 11]);
+
+export type Tier = "PRIMARY" | "CHEAP";
+
+// 롤백 스위치 — true 로 바꾸면 전부 PRIMARY
+const FORCE_PRIMARY = false;
+
+export function pickTier(stage: number | null | undefined): Tier {
+  if (FORCE_PRIMARY) return "PRIMARY";
+  if (!stage || !Number.isFinite(stage)) return "PRIMARY"; // SSoT 누락 → PRIMARY fallback
+  return PRIMARY_STAGES.has(stage) ? "PRIMARY" : "CHEAP";
+}
+
+export function pickModelForTier(tier: Tier, requested?: string | null): string {
+  if (tier === "PRIMARY") return requested ? resolveModelId(requested) : PRIMARY_MODEL;
+  return CHEAP_MODEL;
+}
+
+// T1: 최근 메시지에서 stage 와 후속 단계 필드명 충돌 감지 → PRIMARY 강등
+export function hasStageConflict(stage: number | null | undefined, messages: unknown): boolean {
+  if (!stage || !Array.isArray(messages)) return false;
+  const lastFew = messages.slice(-3);
+  const blob = lastFew
+    .map((m) => {
+      const mm = m as AnyObj;
+      return typeof mm.content === "string" ? (mm.content as string) : JSON.stringify(mm.content ?? "");
+    })
+    .join("\n");
+  if (stage <= 4 && /(평가\d+_|학습목표|전개_sub\d+_|수업자의도)/.test(blob)) return true;
+  if (stage <= 5 && /(수업자의도|전개_sub\d+_(교사활동|학생활동))/.test(blob)) return true;
+  return false;
+}
+
+// T2: tier 별 출력 토큰 / 온도
+export function tierConfig(tier: Tier) {
+  if (tier === "PRIMARY") return { temperature: 0.7, maxOutputTokens: 16000 };
+  return { temperature: 0.5, maxOutputTokens: 8000 };
+}
+
+// MALFORMED / JSON_PARSE 신호: 다음 시도는 PRIMARY 로
+export function isMalformedSignal(message: string): boolean {
+  return /MALFORMED_FUNCTION_CALL|JSON_PARSE|JSON\s*parse\s*failed|invalid\s+function\s+call/i.test(
+    message || "",
+  );
+}
+
 // Convert Gemini tools [{functionDeclarations:[...]}] to OpenAI tools
 export function geminiToolsToOpenAI(tools: unknown): unknown[] | undefined {
   if (!Array.isArray(tools)) return undefined;
