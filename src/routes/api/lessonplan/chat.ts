@@ -253,11 +253,11 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
             })
             .filter(Boolean);
 
-          // JSON mode: client expects parsed JSON merged with _usd
+          // JSON mode: client expects parsed JSON merged with _usd / _model
           if (json && functionCalls.length === 0) {
             try {
               const parsed = JSON.parse(result.text);
-              return Response.json({ ...parsed, _usd: costUsd });
+              return Response.json({ ...parsed, _usd: costUsd, _model: modelInUse });
             } catch {
               return Response.json(
                 { error: "JSON 파싱 실패", raw: result.text.slice(0, 1000) },
@@ -266,10 +266,11 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
             }
           }
 
-          // Legacy shape
+          // Legacy shape — includes modelUsed so the client can attribute tokens per model.
           return Response.json({
             content: result.text || "",
             functionCalls,
+            modelUsed: modelInUse,
             usage: {
               promptTokenCount: promptTokens,
               candidatesTokenCount: outputTokens,
