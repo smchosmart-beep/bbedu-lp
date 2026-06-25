@@ -1124,7 +1124,7 @@ async function callLLM(messages, maxTokens = 16000, onRetry = null) {
       res = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages, tools: TOOLS, maxTokens, model: FORCE_MODEL, variant: VARIANT, stage }),
+        body: JSON.stringify({ messages, tools: TOOLS, maxTokens, model: FORCE_MODEL, variant: VARIANT, stage, runId: state.runId }),
       });
     } catch (netErr) {
       // 네트워크 실패(서버 도달 못 함) — 일시 오류로 보고 재시도
