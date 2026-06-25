@@ -70,8 +70,9 @@ function renderCosts() {
     const bd = byDay[d];
     tot.usd += bd.usd; tot.calls += bd.calls; tot.tokens += bd.tokens; tot.sessions += bd.sessions || 0; tot.plans += bd.plans || 0;
     Object.entries(bd.models || {}).forEach(([m, v]) => {
-      const o = (byModel[m] = byModel[m] || { usd: 0, calls: 0, tokens: 0 });
+      const o = (byModel[m] = byModel[m] || { usd: 0, calls: 0, tokens: 0, prompt: 0, output: 0 });
       o.usd += v.usd; o.calls += v.calls; o.tokens += v.tokens;
+      o.prompt += v.prompt || 0; o.output += v.output || 0;
     });
   });
   $("cTotalKrw").textContent = won(tot.usd);
