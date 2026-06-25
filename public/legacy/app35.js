@@ -47,6 +47,7 @@ const state = {
   confirmedChoices: new Set(),   // 사용자가 확정한 CHOICE_PLAN_KEY(normField)들 — LLM이 이미 끝낸 항목 카드를 다시 띄우면(같은 단계 반복·이전 단계로 되돌아감) 가드로 차단
   interactionId: null,           // [USE_INTER] previous_interaction_id — 서버가 대화 보관, 클라는 이 ID만 이어 전달
   interInput: null,              // [USE_INTER] 다음 callLLMInter에 보낼 input(첫 턴=user 문자열, 이후=function_result 배열)
+  runId: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : ("r" + Date.now() + "-" + Math.random().toString(36).slice(2, 10)),
 };
 
 /* ====================== 시스템 프롬프트 (CORE + STAGE_GUIDE 분리) ======================
@@ -1123,7 +1124,7 @@ async function callLLM(messages, maxTokens = 16000, onRetry = null) {
       res = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages, tools: TOOLS, maxTokens, model: FORCE_MODEL, variant: VARIANT, stage }),
+        body: JSON.stringify({ messages, tools: TOOLS, maxTokens, model: FORCE_MODEL, variant: VARIANT, stage, runId: state.runId }),
       });
     } catch (netErr) {
       // 네트워크 실패(서버 도달 못 함) — 일시 오류로 보고 재시도
@@ -1179,7 +1180,7 @@ async function callLLMInter(input, onRetry = null) {
       res = await fetch(INTER_API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ previousInteractionId: state.interactionId, input, system: systemPrompt, tools: TOOLS, maxTokens: 16000, model: FORCE_MODEL, variant: VARIANT, stage }),
+        body: JSON.stringify({ previousInteractionId: state.interactionId, input, system: systemPrompt, tools: TOOLS, maxTokens: 16000, model: FORCE_MODEL, variant: VARIANT, stage, runId: state.runId }),
       });
     } catch (netErr) {
       if (attempt < LLM_RETRY_DELAYS.length) { if (onRetry) onRetry(attempt + 1, LLM_RETRY_DELAYS.length, 0); await sleep(LLM_RETRY_DELAYS[attempt]); continue; }
@@ -1240,6 +1241,7 @@ function saveState() {
       subEditedStages: [...state.subEditedStages],
       usage: state.usage,
       interactionId: state.interactionId,   // [USE_INTER] 서버 대화 참조 ID
+      runId: state.runId,
     }));
   } catch (e) { /* 용량 초과 등은 무시 */ }
 }
@@ -1261,6 +1263,7 @@ function loadSavedState() {
     state.callSeq = s.callSeq || 0;
     state.subEditedStages = new Set(s.subEditedStages || []);
     state.usage = s.usage || { calls: 0, prompt: 0, output: 0, cached: 0 };
+    if (s.runId) state.runId = s.runId;
     // 이미 채워진 CHOICE 항목은 확정된 것으로 보고 가드를 복원(새로고침 후 되돌아가기 반복 방지)
     state.confirmedChoices = new Set([...CHOICE_PLAN_KEYS].filter((k) => state.partialPlan[k] != null && String(state.partialPlan[k]).trim() !== ""));
     return true;
@@ -2470,6 +2473,7 @@ function showWelcome() {
   state.registered = false;   // 새 세션 — 검증 통과 시 다시 등록 가능
   state.interactionId = null;
   state.interInput = null;
+  state.runId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : ("r" + Date.now() + "-" + Math.random().toString(36).slice(2, 10));
   chatEl().innerHTML = "";
   clearQuick();
   setComposerEnabled(false);

@@ -22,6 +22,8 @@ const MAX_TOKENS = 32_768;
 async function logUsage(row: {
   model: string;
   variant: string | null;
+  stage: string | null;
+  run_id: string | null;
   prompt: number;
   output: number;
   total: number;
@@ -35,12 +37,12 @@ async function logUsage(row: {
       user_id: null,
       model: row.model,
       variant: row.variant,
-      stage: null,
+      stage: row.stage,
       prompt_tokens: row.prompt,
       output_tokens: row.output,
       total_tokens: row.total,
       latency_ms: row.latency_ms,
-      run_id: null,
+      run_id: row.run_id,
       error: row.error,
     });
   } catch {
@@ -75,6 +77,7 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           system,
           user,
           stage,
+          runId,
           forceTier,
         } = body as {
           messages?: unknown;
@@ -86,8 +89,12 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           system?: string;
           user?: string;
           stage?: number;
+          runId?: string;
           forceTier?: Tier;
         };
+        const stageStr = typeof stage === "number" && Number.isFinite(stage) ? String(stage) : null;
+        const runIdStr = typeof runId === "string" && runId.trim() ? runId.trim().slice(0, 64) : null;
+
 
         // Build messages array
         let oaiMessages: { role: "system" | "user" | "assistant"; content: string }[] = [];
@@ -215,6 +222,8 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           void logUsage({
             model: modelInUse,
             variant: variant ?? null,
+            stage: stageStr,
+            run_id: runIdStr,
             prompt: promptTokens,
             output: outputTokens,
             total: totalTokens,
@@ -272,6 +281,8 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           void logUsage({
             model: resolvedModel,
             variant: variant ?? null,
+            stage: stageStr,
+            run_id: runIdStr,
             prompt: 0,
             output: 0,
             total: 0,
