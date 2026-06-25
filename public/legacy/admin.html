@@ -120,6 +120,30 @@
     </div>
     <p id="fileEmpty" class="text-xs text-slate-400 py-6 text-center hidden">아직 저장된 과정안이 없습니다.</p>
   </section>
+
+  <!-- 모델 비교 -->
+  <section class="bg-white rounded-3xl shadow-card p-5">
+    <div class="flex items-center gap-2 mb-3">
+      <h2 class="text-sm font-semibold">🧪 모델 비교 <span class="font-normal text-[11px] text-slate-400">(같은 프롬프트를 여러 모델에 보내 응답·토큰·예상 비용을 비교)</span></h2>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">시스템 프롬프트 (선택)</label>
+        <textarea id="cmpSystem" rows="2" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:border-brand-500" placeholder="예) 당신은 한국 초등 교사를 돕는 조교입니다."></textarea>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">사용자 프롬프트</label>
+        <textarea id="cmpPrompt" rows="2" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:border-brand-500" placeholder="예) 3학년 2학기 자석 단원의 탐구질문 3개를 제안해 주세요."></textarea>
+      </div>
+    </div>
+    <div class="mb-2 text-xs text-slate-500">비교할 모델 (최대 8개)</div>
+    <div id="cmpModels" class="flex flex-wrap gap-1.5 mb-3"></div>
+    <div class="flex items-center gap-2">
+      <button id="cmpRunBtn" class="rounded-2xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium px-4 py-2 transition-colors">실행</button>
+      <span id="cmpMsg" class="text-xs text-slate-500"></span>
+    </div>
+    <div id="cmpResults" class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4"></div>
+  </section>
 </div>
 
 <!-- ── 워크플로 / 프롬프트 문서 모달 ── -->
