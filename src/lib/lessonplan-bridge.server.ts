@@ -226,7 +226,25 @@ export const PRICING: Record<string, { in: number; out: number }> = {
   "openai/gpt-5.5": { in: 3.0, out: 25.0 },
 };
 
+const _missedPricingWarned = new Set<string>();
 export function estimateCostUsd(model: string, promptTokens: number, outputTokens: number): number {
-  const p = PRICING[model] ?? { in: 0.5, out: 3.0 };
-  return (promptTokens * p.in + outputTokens * p.out) / 1e6;
+  const resolved = resolveModelId(model);
+  const p = PRICING[resolved] ?? PRICING[model];
+  if (!p && model && !_missedPricingWarned.has(model)) {
+    _missedPricingWarned.add(model);
+    console.warn(`[pricing-miss] model="${model}" (resolved="${resolved}") — using fallback {in:0.5, out:3.0}`);
+  }
+  const pp = p ?? { in: 0.5, out: 3.0 };
+  return (promptTokens * pp.in + outputTokens * pp.out) / 1e6;
+}
+
+// 모델별 토큰 분해로 정확 환산 — 2-Tier 라우팅에서 콜마다 모델이 달라도 합산 가능
+export type UsageByModel = Record<string, { prompt?: number; output?: number; calls?: number }>;
+export function estimateCostUsdByModel(usage: UsageByModel | null | undefined): number {
+  if (!usage || typeof usage !== "object") return 0;
+  let total = 0;
+  for (const [m, t] of Object.entries(usage)) {
+    total += estimateCostUsd(m, Number(t?.prompt ?? 0), Number(t?.output ?? 0));
+  }
+  return total;
 }
