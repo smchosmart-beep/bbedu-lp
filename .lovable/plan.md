@@ -1,72 +1,46 @@
-목표: 최근 적용된 2-Tier 라우팅·stage 태그·A/B 검증 구조에 맞춰 챗봇의 SYSTEM_PROMPT 및 워크플로 텍스트를 정비한다.
-범위는 프롬프트/문서 정비에 한정하며, 모델·라우팅 로직(이미 구현됨)은 변경하지 않는다.
+# 비용 추적 데이터 점검 결과
 
-## 현재 상태 (확인됨)
-- `public/legacy/app35.js`의 `SYSTEM_PROMPT`는 단일 ~5KB 블록(라인 54~131). 매 턴 전체 주입.
-- `detectStage()` 클라 SSoT 존재, stage는 서버로 전달되어 PRIMARY/CHEAP 라우팅에 사용.
-- A/B 검증(2.5-flash-lite → 3-flash-preview)은 `verifyPlanQuality()`에 이미 구현. 사용자 프롬프트엔 "한 번의 검토"로만 기술되어 있어 문제는 없음.
-- `.lovable/plan.md` 2번 항목("SYSTEM_PROMPT 분할")이 코드에 미반영 상태 — 이번 작업의 핵심.
+결론부터: **목업이 아니라 실제 `ai_usage_log` 테이블 데이터**입니다 (현재 17행, 그 중 `variant='v35'` 11행). 다만 표시 로직에 3가지 결함이 있어 "가짜처럼" 보입니다.
 
-## 변경 계획
+## 발견된 문제
 
-### 1. SYSTEM_PROMPT를 CORE + STAGE_GUIDE로 분리 (app35.js)
+### P1. `variant=v35` 필터가 서버에서 무시됨 (가장 큰 문제)
+- 클라(`admin35.js:54`)는 `/admin/costs?variant=v35`로 호출하지만,
+- 서버(`src/routes/api/admin/$.ts:126-129`)의 `loadCostByDay()`는 쿼리스트링을 읽지 않고 **모든 행을 합산**해서 반환.
+- → /35 대시보드에 메인(`/`) 트래픽까지 섞여 표시됨. 분리 집계라는 모달 설명과 실제 동작 불일치.
 
-**CORE (~2.5KB, 매 턴 주입):** 단계 독립 규칙만 보존.
-- [함수 사용] 전체
-- [정보 수집]
-- [사용자 직접 입력 다듬기]
-- [2022 개정 교육과정 용어]
-- [필드 작성 규칙] 전체 (교사활동·학생활동·자료유의평가·시간·sub키·단계키·도입/정리 단일·차시 비움 규칙)
-- [채팅 길이], [톤]
-- [권장 진행 순서] 머리말 1~2줄 + 단계 목록(1~11) 한 줄 요약(현 라인 71~101의 첫 문장만 추출). "각 단계의 세부 규칙은 진행 시 추가로 안내된다"는 한 줄.
+### P2. "세션 수" / "과정안 수"가 항상 0
+- `loadCostByDay`가 `sessions`, `plans` 필드를 0으로 초기화만 하고 **한 번도 증가시키지 않음** (라인 92-101).
+- 게다가 `chat.ts`의 `logUsage()`가 `run_id: null`을 하드코딩 → DB에 세션 식별자 자체가 없어 distinct count 불가.
+- → 비용 ₩76인데 "세션 수 0"으로 표시되어 모순돼 보임.
 
-**STAGE_GUIDE (현재 stage ±1만 주입):** stage별 디테일.
-- `STAGE_GUIDES = { 1: "...", 2: "...", ..., 11: "..." }` 객체로 정의.
-- 각 항목은 현 SYSTEM_PROMPT 라인 71~101의 해당 단계 본문(★ 안내 포함) 그대로 옮김.
-- stage 6은 ⓪~③·ㄱ~ㄹ 디테일이 길어 단독 1KB 수준.
+### P3. `stage` 컬럼도 항상 null
+- `chat.ts:33`이 `stage: null` 하드코딩. 클라가 `stage`를 body로 보내지만 로그에 기록되지 않음.
+- → 추후 단계별 비용 분석(2-Tier 라우팅 효과 검증) 불가.
 
-**조립 함수:**
-```js
-function buildSystemPrompt(stage) {
-  const guides = [stage - 1, stage, stage + 1]
-    .filter(s => s >= 1 && s <= 11)
-    .map(s => `[${s}단계 세부]\n${STAGE_GUIDES[s]}`)
-    .join("\n\n");
-  return `${CORE_PROMPT}\n\n${guides}`;
-}
-```
+## 수정 계획
 
-**주입 위치:**
-- `callLLM()` (라인 1071~): `messages[0]`이 system이면 매 턴 `buildSystemPrompt(stage)`로 교체 후 전송.
-- `callLLMInter()` (라인 1126~): `system` 필드를 `buildSystemPrompt(detectStage(state.partialPlan))`로 동적 생성.
-- 세션 시작/복원 지점(라인 1208, 2410)의 초기 system도 `buildSystemPrompt(1)`로 생성.
+### 1. 서버: `loadCostByDay`가 variant 필터 받기
+- 시그니처를 `loadCostByDay(variant?: string)`로 바꾸고, GET 핸들러에서 `new URL(request.url).searchParams.get("variant")`를 읽어 전달.
+- Supabase 쿼리에 `.eq("variant", variant)` 조건 추가 (값 있을 때만).
 
-### 2. 권장 진행 순서 머리말의 stage 일관성 검증
+### 2. 서버: 세션·과정안 집계
+- 같은 쿼리에서 `run_id`도 SELECT 한 뒤, 일자별 `Set<run_id>` 크기를 `sessions`로 집계.
+- `plans`는 별도 신호가 없으므로 우선 `hwpx_files` 테이블의 `created_at` 일자별 count를 합쳐 채움(완료 = 1과정안 기준).
 
-`detectStage()`가 보는 필드 키와 워크플로 단계 번호 간 매핑이 일치하는지 한 번 점검:
-- 단계 1~11이 `detectStage` 분기와 정확히 1:1 대응되는지 확인.
-- 불일치 발견 시 STAGE_GUIDE 본문 또는 detectStage 분기 중 워크플로 본문이 정답이므로 detectStage 코멘트만 보강(로직 변경 X).
+### 3. 서버: `logUsage`가 stage·run_id 기록
+- `chat.ts` POST 핸들러: body에서 `runId`(클라가 세션 식별자로 보내는 값) 받아 `logUsage`에 전달, `stage`도 그대로 저장.
+- 클라(`app35.js`)에서 세션 시작 시 `crypto.randomUUID()`로 `runId` 1회 생성 → 이후 모든 `/api/lessonplan/chat` 호출에 `runId`, `stage` 포함.
+- `inter.ts`도 동일하게 보강(있을 경우).
 
-### 3. CORE 내 검증 안내 문구 정비
+### 4. (옵션) 모달 문구
+- "세션 수"·"과정안 수"가 의미하는 바를 모달에 한 줄 보강(세션=run_id 단위 대화, 과정안=HWPX 생성 완료 건수).
 
-현 11단계 문장의 "complete_plan이 수행하므로 따로 점검 보고하지 않습니다"는 그대로 유지(A/B 분리는 서버 내부 구현이라 모델에 노출 불필요). 추가 변경 없음.
-
-### 4. 검수(🔎) 프롬프트 점검
-
-`runReview()`/검수 프롬프트(라인 2018 부근)에 stage 의존 표현이 있는지 확인. 검수는 항상 전체 plan 기준이므로 stage 라우팅과 무관 — 변경 없음 예상이나 1회 grep 확인.
-
-### 5. 토큰 절감 추정
-
-- 매 턴 system 토큰: 약 5KB → 2.5KB(CORE) + 0.5~1KB(STAGE_GUIDE 1~3개) = **2.5~3.5KB**.
-- 입력 토큰 약 30~40% 절감(단계당 평균).
+## 검증
+- 수정 후 /35 페이지: 총 비용·일별 차트가 v35만 합산되어 줄어들고, 세션 수가 1 이상으로 표시되는지 확인.
+- `select variant, count(*) from ai_usage_log group by variant`로 신규 행이 variant='v35'로 기록되는지 확인.
+- 2-Tier 라우팅 효과 분석을 위해 `select stage, model, sum(prompt_tokens), count(*) from ai_usage_log where variant='v35' group by 1,2 order by 1` 쿼리가 의미 있게 반환되는지 확인.
 
 ## 영향 범위
-- 수정 파일: `public/legacy/app35.js` 단일.
-- 서버(`chat.ts`, `bridge.server.ts`, `inter.ts`)·DB·도구 선언 변경 없음.
-- 검증/라우팅 로직 변경 없음 (이미 구현됨).
-
-## 검증 방법
-1. 빌드 후 `/legacy/35.html` 로드 → 1~11단계 시나리오 1사이클 실행, 단계 전환 시 system이 stage에 맞게 바뀌는지 console.log로 1회 확인 (배포 후 제거).
-2. `ai_usage_log`에서 평균 prompt_tokens가 30%+ 줄었는지 비교.
-3. 6단계 ㄱ→ㄴ→ㄷ→ㄹ 진행이 sticky하게 PRIMARY로 유지되는지 라우팅 가드와 함께 확인.
-4. 회귀 시 `buildSystemPrompt`가 항상 전체 STAGE_GUIDES를 합쳐 반환하도록 1줄 토글(`FORCE_FULL_PROMPT=true`)로 즉시 롤백.
+- 수정 파일: `src/routes/api/admin/$.ts`, `src/routes/api/lessonplan/chat.ts`, `src/routes/api/lessonplan/inter.ts`(해당 시), `public/legacy/app35.js`, `public/legacy/admin35.js`(모달 문구 한 줄).
+- DB 마이그레이션 없음 — `ai_usage_log`에 `variant`/`stage`/`run_id` 컬럼은 이미 존재.
