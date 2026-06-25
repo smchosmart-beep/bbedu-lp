@@ -1,6 +1,6 @@
 // Legacy Firebase /api/lessonplan/chat compatibility endpoint, served by Lovable AI Gateway.
 import { createFileRoute } from "@tanstack/react-router";
-import { generateText } from "ai";
+import { generateText, jsonSchema, tool as aiTool } from "ai";
 import {
   adaptMessages,
   estimateCostUsd,
@@ -105,7 +105,7 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
         const start = Date.now();
         try {
           // Convert tools to AI SDK shape (object keyed by tool name)
-          let aiTools: Record<string, { description: string; inputSchema: unknown }> | undefined;
+          let aiTools: Record<string, ReturnType<typeof aiTool>> | undefined;
           if (openaiTools && openaiTools.length > 0) {
             aiTools = {};
             for (const t of openaiTools) {
@@ -115,10 +115,15 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
                 parameters?: unknown;
               };
               if (!fn.name) continue;
-              aiTools[fn.name] = {
+              aiTools[fn.name] = aiTool({
                 description: fn.description ?? "",
-                inputSchema: fn.parameters ?? { type: "object", properties: {} },
-              };
+                inputSchema: jsonSchema(
+                  (fn.parameters as Parameters<typeof jsonSchema>[0]) ?? {
+                    type: "object",
+                    properties: {},
+                  },
+                ),
+              });
             }
           }
 
