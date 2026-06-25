@@ -41,7 +41,8 @@ const state = {
   pendingCall: null,   // present_choices 대기: { tool_call_id, name, cardArgs }
   callSeq: 0,          // tool_call id 생성용
   recentlyUpdated: new Set(),   // 직전 update_plan으로 바뀐 필드 키 — 미리보기 셀 강조용
-  usage: { calls: 0, prompt: 0, output: 0, cached: 0 },   // 세션 누적 토큰(이 과정안 생성 비용용) — 저장 시 서버가 단가 환산
+  usage: { calls: 0, prompt: 0, output: 0, cached: 0 },   // 세션 누적 토큰(합계 — 호환용)
+  usageByModel: {},   // 모델별 누적 토큰: {"google/gemini-3.5-flash":{prompt,output,calls}, ...} — 2-Tier 라우팅 정확 환산용
   verifyUsd: 0,          // 세션 누적 품질 검수 비용(USD) — 검수 호출 _usd 누적, 저장 시 단건 비용에 합산(검수 모델 단가 서버 환산본)
   reviewNote: null,      // 방금 외부 검토자(🔎)가 준 의견 — 이걸 본 교사가 다음에 발화하면 그 발화와 함께 1회 본 대화 맥락에 주입(독립 검토라 메인 LLM은 모르므로)
   confirmedChoices: new Set(),   // 사용자가 확정한 CHOICE_PLAN_KEY(normField)들 — LLM이 이미 끝낸 항목 카드를 다시 띄우면(같은 단계 반복·이전 단계로 되돌아감) 가드로 차단
@@ -1111,6 +1112,20 @@ function detectStage(p) {
   return 11;
 }
 
+/* 모델별 토큰 분해 누적 — 서버 응답의 modelUsed로 어느 모델이 실제 사용됐는지 정확히 기록.
+   응답에 modelUsed가 없으면(구버전 서버) FORCE_MODEL을 폴백으로 사용. 키는 vendor/model 정규형. */
+function normalizeModelId(m) {
+  if (!m) return "google/" + FORCE_MODEL;
+  return String(m).includes("/") ? String(m) : "google/" + String(m);
+}
+function accumUsageByModel(modelUsed, prompt, output) {
+  const key = normalizeModelId(modelUsed);
+  const x = (state.usageByModel[key] = state.usageByModel[key] || { prompt: 0, output: 0, calls: 0 });
+  x.prompt += Number(prompt) || 0;
+  x.output += Number(output) || 0;
+  x.calls += 1;
+}
+
 /* function calling 지원 호출 — { content, functionCalls } 반환. onRetry(n,total,status)로 재시도 진행 통지 */
 async function callLLM(messages, maxTokens = 16000, onRetry = null) {
   const stage = detectStage(state.partialPlan);
@@ -1137,12 +1152,15 @@ async function callLLM(messages, maxTokens = 16000, onRetry = null) {
     }
     if (res.ok) {
       const data = await res.json();
-      const u = data.usage;   // 세션 누적(이 과정안 생성에 든 토큰) — 저장 시 서버가 단가 환산
+      const u = data.usage;   // 세션 누적(이 과정안 생성에 든 토큰) — 저장 시 서버가 모델별 단가 환산
       if (u) {
+        const p = u.promptTokenCount || 0;
+        const o = u.candidatesTokenCount || 0;
         state.usage.calls += 1;
-        state.usage.prompt += u.promptTokenCount || 0;
-        state.usage.output += u.candidatesTokenCount || 0;
+        state.usage.prompt += p;
+        state.usage.output += o;
         state.usage.cached += u.cachedContentTokenCount || 0;
+        accumUsageByModel(data.modelUsed, p, o);
       }
       return { content: data.content || "", functionCalls: data.functionCalls || [] };
     }
@@ -1240,6 +1258,7 @@ function saveState() {
       callSeq: state.callSeq,
       subEditedStages: [...state.subEditedStages],
       usage: state.usage,
+      usageByModel: state.usageByModel,
       interactionId: state.interactionId,   // [USE_INTER] 서버 대화 참조 ID
       runId: state.runId,
     }));
@@ -1263,6 +1282,7 @@ function loadSavedState() {
     state.callSeq = s.callSeq || 0;
     state.subEditedStages = new Set(s.subEditedStages || []);
     state.usage = s.usage || { calls: 0, prompt: 0, output: 0, cached: 0 };
+    state.usageByModel = s.usageByModel || {};
     if (s.runId) state.runId = s.runId;
     // 이미 채워진 CHOICE 항목은 확정된 것으로 보고 가드를 복원(새로고침 후 되돌아가기 반복 방지)
     state.confirmedChoices = new Set([...CHOICE_PLAN_KEYS].filter((k) => state.partialPlan[k] != null && String(state.partialPlan[k]).trim() !== ""));
@@ -2030,12 +2050,14 @@ async function saveLessonPlan(blob, fileName, p) {
     await fetch("/api/lessonplan/save", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        fileName, fileBase64, variant: VARIANT, model: FORCE_MODEL,   // /35: variant 분리 저장 + 고정 모델 단가로 환산
+        fileName, fileBase64, variant: VARIANT, model: FORCE_MODEL,   // /35: variant 분리 저장 + 호환용 단일 model 단가도 전달
         meta: {
           학년: p.학년 || "", 학기: p.학기 || "", 교과: p.교과 || "", 단원: p.단원 || "",
           성취기준: p.성취기준 || "", 수업주제: p.수업주제 || p.학습주제 || "",
+          run_id: state.runId,   // ai_usage_log와 cross-check용 — 어드민이 SSoT 재계산 KRW를 보여줌
         },
-        usage: { ...state.usage },   // 세션 누적 토큰 → 서버가 모델 단가로 비용 환산
+        usage: { ...state.usage },   // 합계(호환)
+        usageByModel: { ...state.usageByModel },   // 모델별 분해 → 서버가 콜 단가로 정확 환산
         verifyUsd: state.verifyUsd || 0,   // 누적 품질 검수 비용 → 서버가 단건 비용에 합산
       }),
     });
@@ -2466,6 +2488,7 @@ function showWelcome() {
   state.pendingCall = null;
   state.callSeq = 0;
   state.usage = { calls: 0, prompt: 0, output: 0, cached: 0 };
+  state.usageByModel = {};
   state.verifyUsd = 0;
   state.reviewNote = null;
   state.completeFails = 0;

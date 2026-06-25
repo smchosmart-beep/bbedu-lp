@@ -1,46 +1,100 @@
-# 비용 추적 데이터 점검 결과
+# 비용을 정확하게 계산하는 관리자 화면 재구현 계획
 
-결론부터: **목업이 아니라 실제 `ai_usage_log` 테이블 데이터**입니다 (현재 17행, 그 중 `variant='v35'` 11행). 다만 표시 로직에 3가지 결함이 있어 "가짜처럼" 보입니다.
+## 진단 요약 (앞선 검증 결과)
+- 311원으로 표시된 과정안의 실제 계산: `(275052×0.5 + 22683×3.0)/1e6 = 0.2056 USD` → **fallback 단가(3-flash-preview)로 계산됨**.
+- 원인: `app35.js`가 `model:"gemini-3.5-flash"`(prefix 없음)로 보내고 `PRICING`은 `"google/gemini-3.5-flash"` 키 → `estimateCostUsd`가 못 찾고 `{in:0.5, out:3.0}`로 fallback. 검수비(`verifyUsd ≈ 0.0017`)만 합산되어 0.207268로 저장.
+- 같은 토큰을 3.5-flash 단가로 환산하면 0.6167 USD ≈ **925원** — 현재 표시의 약 3배.
+- 추가 문제: 2-Tier 라우팅으로 콜마다 실제 사용 모델이 다른데 `hwpx_files.usage`는 단일 모델 단가로 합산. 또 `ai_usage_log`에 36 콜 중 0건만 기록(해당 과정안 생성 시간대) → 사후 검증조차 불가.
 
-## 발견된 문제
+## 설계 원칙
+1. **SSoT = `ai_usage_log`**. 비용은 항상 콜 단위 로그를 모델별로 집계해서 계산. `hwpx_files.cost_usd`는 표시용 캐시일 뿐 신뢰의 근원이 아님.
+2. **모델 ID는 항상 `vendor/model` 정규형**으로 저장·조회. 클라가 보내는 raw 값을 즉시 `resolveModelId()`로 정규화.
+3. **단가표(`PRICING`)는 서버 단일 출처**. 어드민이 GET `/admin/config`로 받아 그대로 표시.
+4. **관리자 화면은 두 값(저장 시 캐시 vs 로그 재계산)을 나란히 보여주고 격차를 표시**해서 회계 신뢰성을 가시화.
 
-### P1. `variant=v35` 필터가 서버에서 무시됨 (가장 큰 문제)
-- 클라(`admin35.js:54`)는 `/admin/costs?variant=v35`로 호출하지만,
-- 서버(`src/routes/api/admin/$.ts:126-129`)의 `loadCostByDay()`는 쿼리스트링을 읽지 않고 **모든 행을 합산**해서 반환.
-- → /35 대시보드에 메인(`/`) 트래픽까지 섞여 표시됨. 분리 집계라는 모달 설명과 실제 동작 불일치.
+## 1단계 — 서버 수정 (정확성 확보)
 
-### P2. "세션 수" / "과정안 수"가 항상 0
-- `loadCostByDay`가 `sessions`, `plans` 필드를 0으로 초기화만 하고 **한 번도 증가시키지 않음** (라인 92-101).
-- 게다가 `chat.ts`의 `logUsage()`가 `run_id: null`을 하드코딩 → DB에 세션 식별자 자체가 없어 distinct count 불가.
-- → 비용 ₩76인데 "세션 수 0"으로 표시되어 모순돼 보임.
+### 1.1 `lessonplan-bridge.server.ts`
+- `estimateCostUsd(model, p, o)`: `PRICING[resolveModelId(model)] ?? PRICING[model] ?? { in:0.5, out:3.0 }` 순으로 조회. fallback 시 콘솔에 `[pricing-miss] model=...` 1회 경고.
 
-### P3. `stage` 컬럼도 항상 null
-- `chat.ts:33`이 `stage: null` 하드코딩. 클라가 `stage`를 body로 보내지만 로그에 기록되지 않음.
-- → 추후 단계별 비용 분석(2-Tier 라우팅 효과 검증) 불가.
+### 1.2 `chat.ts`
+- 응답 본문에 `modelUsed: modelInUse` 추가(클라가 모델별 토큰 누적에 사용).
+- `logUsage` 내부 catch에서 `console.error("[ai_usage_log insert failed]", err)`로 가시화.
 
-## 수정 계획
+### 1.3 `save.ts` — 모델별 환산으로 시그니처 확장
+- 기존: `usage:{prompt,output}` + 단일 `model` → 단일 단가 환산.
+- 신규: `usageByModel: { "google/gemini-3.5-flash":{prompt,output,calls}, "google/gemini-3-flash-preview":{...} }` 받기. 각 모델별로 `estimateCostUsd` 호출 후 합산. 하위 호환 위해 구 형식도 처리(들어오면 단일 모델 환산).
+- `model` 컬럼에는 "비중이 가장 큰 모델"을 저장(요약 표시용), 정확한 분해는 `usage` JSON에 그대로 보관.
 
-### 1. 서버: `loadCostByDay`가 variant 필터 받기
-- 시그니처를 `loadCostByDay(variant?: string)`로 바꾸고, GET 핸들러에서 `new URL(request.url).searchParams.get("variant")`를 읽어 전달.
-- Supabase 쿼리에 `.eq("variant", variant)` 조건 추가 (값 있을 때만).
+### 1.4 `loadCostByDay` (`admin/$.ts`)
+- 모델 정규화 후 단가 조회(1.1과 동일 로직).
+- `models` 맵 키도 `resolveModelId()` 정규형으로 일원화 → "google/gemini-3.5-flash"와 "gemini-3.5-flash"가 따로 집계되는 현상 제거.
+- 기간 필터 추가: `?from=YYYY-MM-DD&to=YYYY-MM-DD` (기본 최근 30일). 현재 `limit(5000)`만으로는 누락 가능.
 
-### 2. 서버: 세션·과정안 집계
-- 같은 쿼리에서 `run_id`도 SELECT 한 뒤, 일자별 `Set<run_id>` 크기를 `sessions`로 집계.
-- `plans`는 별도 신호가 없으므로 우선 `hwpx_files` 테이블의 `created_at` 일자별 count를 합쳐 채움(완료 = 1과정안 기준).
+### 1.5 `/admin/files` 응답 보강
+- `usage` JSON에서 모델별 토큰이 있으면 `byModel`로 펼쳐 반환.
+- `krw_logged`(같은 `run_id`의 `ai_usage_log` 재계산값) 필드 추가. `run_id`가 있는 경우 백엔드에서 join 후 합산.
 
-### 3. 서버: `logUsage`가 stage·run_id 기록
-- `chat.ts` POST 핸들러: body에서 `runId`(클라가 세션 식별자로 보내는 값) 받아 `logUsage`에 전달, `stage`도 그대로 저장.
-- 클라(`app35.js`)에서 세션 시작 시 `crypto.randomUUID()`로 `runId` 1회 생성 → 이후 모든 `/api/lessonplan/chat` 호출에 `runId`, `stage` 포함.
-- `inter.ts`도 동일하게 보강(있을 경우).
+### 1.6 마이그레이션 (필요 시)
+- `ai_usage_log` GRANT 점검: `GRANT SELECT, INSERT ON public.ai_usage_log TO service_role;`이 누락돼 보임 → 보강 마이그레이션. 기록 누락(36→0)의 잠재 원인.
 
-### 4. (옵션) 모달 문구
-- "세션 수"·"과정안 수"가 의미하는 바를 모달에 한 줄 보강(세션=run_id 단위 대화, 과정안=HWPX 생성 완료 건수).
+## 2단계 — 클라이언트 수정
 
-## 검증
-- 수정 후 /35 페이지: 총 비용·일별 차트가 v35만 합산되어 줄어들고, 세션 수가 1 이상으로 표시되는지 확인.
-- `select variant, count(*) from ai_usage_log group by variant`로 신규 행이 variant='v35'로 기록되는지 확인.
-- 2-Tier 라우팅 효과 분석을 위해 `select stage, model, sum(prompt_tokens), count(*) from ai_usage_log where variant='v35' group by 1,2 order by 1` 쿼리가 의미 있게 반환되는지 확인.
+### 2.1 `app35.js`
+- `state.usageByModel = {}` 신설. 채팅/검수 응답 받을 때 `data.modelUsed`와 `data.usage`로 누적:
+  ```js
+  const m = data.modelUsed || resolveDefault();
+  const x = (state.usageByModel[m] ||= {prompt:0,output:0,calls:0});
+  x.prompt += data.usage.promptTokenCount;
+  x.output += data.usage.candidatesTokenCount;
+  x.calls += 1;
+  ```
+- 세션 시작/복원/리셋 시 `usageByModel` 동기화.
+- `saveLessonPlan()` 호출 시 `usageByModel`을 `save.ts`로 전송. 기존 `usage` 단일 합도 호환용으로 같이 보냄.
+- `model: FORCE_MODEL` 전송 시 `"google/gemini-3.5-flash"` 정규형으로 통일.
 
-## 영향 범위
-- 수정 파일: `src/routes/api/admin/$.ts`, `src/routes/api/lessonplan/chat.ts`, `src/routes/api/lessonplan/inter.ts`(해당 시), `public/legacy/app35.js`, `public/legacy/admin35.js`(모달 문구 한 줄).
-- DB 마이그레이션 없음 — `ai_usage_log`에 `variant`/`stage`/`run_id` 컬럼은 이미 존재.
+## 3단계 — 관리자 화면 재구성 (`public/legacy/admin35.js`/`admin35.html`)
+
+### 3.1 비용 카드 — 일별 표 재설계
+열 구성:
+| 날짜 | 세션 | 과정안 | 콜 | 토큰 | 비용(로그 재계산) |
+|---|---|---|---|---|---|
+- 모든 비용은 `ai_usage_log` 모델별 분해 → KRW 환산. 단일 평균 단가 표시 금지.
+
+### 3.2 모델별 분해 패널 (신규)
+- 선택 일자/기간에 대해 `model | calls | prompt | output | USD | KRW | %` 표.
+- 단가 출처를 명시: "단가표 v{PRICING 버전 해시 또는 갱신일}".
+
+### 3.3 과정안 목록 — 격차 컬럼 추가
+열: `생성시각 | 파일명 | 메타 | 저장시 KRW | 로그 재계산 KRW | 격차`.
+- "격차" 절댓값 ≥ 50원이면 행을 노랗게 강조.
+- 행 펼치면 모델별 토큰 분해와 각 단가 표시.
+
+### 3.4 단가/환율 패널
+- `/admin/config` 응답의 `PRICING`과 `KRW_PER_USD`를 그대로 표로 표시(읽기 전용). 모달 안내 문구를 "표시 비용은 위 단가표를 기준으로 한 추정치이며, 실제 청구액은 게이트웨이 정산 기준과 다를 수 있습니다."로 명확화.
+
+### 3.5 진단 배너 (신규)
+화면 상단에 작은 배너로 다음 신호를 노출:
+- 최근 24h에 `ai_usage_log` insert가 0건이면 빨강 배너 "콜 로그 누락 감지".
+- `hwpx_files.cost_usd`와 로그 재계산값 격차 비율이 일정 임계(예: 30%) 이상이면 노랑 배너.
+
+## 4단계 — 검증
+1. 새 과정안 1건 생성 → `/admin/files`에서 `저장시 KRW`와 `로그 재계산 KRW`가 ±5% 이내로 일치하는지 확인.
+2. 동일 토큰(275052 / 22683)을 모델 분해 없이 3.5-flash 단가만 적용했을 때 ~925원이 나오는지 단위 환산 수기 검증.
+3. `select model, sum(prompt_tokens)*p/1e6 + sum(output_tokens)*o/1e6 from ai_usage_log group by model` SQL을 별도 노트북 셀에서 돌려 화면 합계와 비교.
+
+## 영향 파일
+- `src/lib/lessonplan-bridge.server.ts` — `estimateCostUsd` 정규화.
+- `src/routes/api/lessonplan/chat.ts` — `modelUsed` 응답, 에러 로깅.
+- `src/routes/api/lessonplan/save.ts` — `usageByModel` 처리.
+- `src/routes/api/admin/$.ts` — `loadCostByDay`, `/files` 응답 보강, 기간 필터.
+- `public/legacy/app35.js` — `usageByModel` 누적 및 저장 호출.
+- `public/legacy/admin35.js`, `public/legacy/admin35.html` — 화면 재구성.
+- 마이그레이션 1건(필요 시): `ai_usage_log` GRANT 보강.
+
+## 비범위 (이번에 안 함)
+- 단가표 자동 동기화(게이트웨이 가격 변동 자동 반영).
+- 사용자/조직 단위 비용 분해.
+- 비용 알림(슬랙/이메일).
+
+필요하면 1·2단계만 먼저 머지하고 3·4단계는 후속 PR로 분리할 수 있습니다.

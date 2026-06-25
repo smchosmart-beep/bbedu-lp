@@ -33,7 +33,7 @@ async function logUsage(row: {
 }) {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.from("ai_usage_log").insert({
+    const { error } = await supabaseAdmin.from("ai_usage_log").insert({
       user_id: null,
       model: row.model,
       variant: row.variant,
@@ -45,8 +45,9 @@ async function logUsage(row: {
       run_id: row.run_id,
       error: row.error,
     });
-  } catch {
-    /* ignore */
+    if (error) console.error("[ai_usage_log insert failed]", error.message);
+  } catch (e) {
+    console.error("[ai_usage_log insert threw]", e instanceof Error ? e.message : String(e));
   }
   void row.cost_usd;
 }
@@ -252,11 +253,11 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
             })
             .filter(Boolean);
 
-          // JSON mode: client expects parsed JSON merged with _usd
+          // JSON mode: client expects parsed JSON merged with _usd / _model
           if (json && functionCalls.length === 0) {
             try {
               const parsed = JSON.parse(result.text);
-              return Response.json({ ...parsed, _usd: costUsd });
+              return Response.json({ ...parsed, _usd: costUsd, _model: modelInUse });
             } catch {
               return Response.json(
                 { error: "JSON 파싱 실패", raw: result.text.slice(0, 1000) },
@@ -265,10 +266,11 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
             }
           }
 
-          // Legacy shape
+          // Legacy shape — includes modelUsed so the client can attribute tokens per model.
           return Response.json({
             content: result.text || "",
             functionCalls,
+            modelUsed: modelInUse,
             usage: {
               promptTokenCount: promptTokens,
               candidatesTokenCount: outputTokens,
