@@ -80,14 +80,20 @@ function renderCosts() {
   $("cAvg").textContent = won(tot.plans ? tot.usd / tot.plans : 0);   // 과정안 1건당 평균(총비용 ÷ 완성 과정안 수)
   $("cSessions").textContent = tot.sessions.toLocaleString();
 
-  // 모델별 표(선택 기간)
+  // 모델별 표(선택 기간) — prompt/output 분해와 단가 출처 명시
   const tb = $("byModelBody"); tb.innerHTML = "";
+  const totalUsd = Object.values(byModel).reduce((s, v) => s + v.usd, 0);
   Object.entries(byModel).sort((a, b) => b[1].usd - a[1].usd).forEach(([m, v]) => {
     const tr = document.createElement("tr"); tr.className = "border-b border-slate-50";
-    tr.innerHTML = `<td class="py-1.5 px-2">${esc(m)}</td>
+    const pp = (v.prompt || 0).toLocaleString();
+    const oo = (v.output || 0).toLocaleString();
+    const pct = totalUsd > 0 ? Math.round((v.usd / totalUsd) * 100) : 0;
+    tr.innerHTML = `<td class="py-1.5 px-2 font-mono text-[11px]">${esc(m)}</td>
       <td class="text-right px-2">${v.calls.toLocaleString()}</td>
-      <td class="text-right px-2">${v.tokens.toLocaleString()}</td>
-      <td class="text-right px-2 font-medium text-brand-600">${won(v.usd)}</td>`;
+      <td class="text-right px-2 text-slate-500">${pp}</td>
+      <td class="text-right px-2 text-slate-500">${oo}</td>
+      <td class="text-right px-2 font-medium text-brand-600">${won(v.usd)}</td>
+      <td class="text-right px-2 text-slate-400">${pct}%</td>`;
     tb.appendChild(tr);
   });
 
