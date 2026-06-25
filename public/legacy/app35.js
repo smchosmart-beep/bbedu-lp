@@ -47,6 +47,7 @@ const state = {
   confirmedChoices: new Set(),   // 사용자가 확정한 CHOICE_PLAN_KEY(normField)들 — LLM이 이미 끝낸 항목 카드를 다시 띄우면(같은 단계 반복·이전 단계로 되돌아감) 가드로 차단
   interactionId: null,           // [USE_INTER] previous_interaction_id — 서버가 대화 보관, 클라는 이 ID만 이어 전달
   interInput: null,              // [USE_INTER] 다음 callLLMInter에 보낼 input(첫 턴=user 문자열, 이후=function_result 배열)
+  runId: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : ("r" + Date.now() + "-" + Math.random().toString(36).slice(2, 10)),
 };
 
 /* ====================== 시스템 프롬프트 (CORE + STAGE_GUIDE 분리) ======================
