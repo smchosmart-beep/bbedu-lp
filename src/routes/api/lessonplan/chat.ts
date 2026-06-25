@@ -96,6 +96,11 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
         };
         const stageStr = typeof stage === "number" && Number.isFinite(stage) ? String(stage) : null;
         const runIdStr = typeof runId === "string" && runId.trim() ? runId.trim().slice(0, 64) : null;
+        // Step 0 진단: stage 누락 호출 추적 (라우팅 변경 효과 측정의 SSoT)
+        if (!stageStr) {
+          console.warn(`[stage-missing] variant=${variant ?? "?"} runId=${runIdStr ?? "?"} json=${!!json} hasModel=${!!model}`);
+        }
+
 
 
         // Build messages array
