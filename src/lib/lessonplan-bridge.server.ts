@@ -32,7 +32,7 @@ export const VERIFY_A_MODEL = "google/gemini-2.5-flash-lite";
 export const VERIFY_B_MODEL = "google/gemini-3-flash-preview";
 
 // 단계별 라우팅 매핑 (1단계 보수: Stage 9·10만 PRIMARY)
-const PRIMARY_STAGES = new Set([9, 10]); // 전개 세트, 본문 전개
+const PRIMARY_STAGES = new Set<number>(); // (테스트) 9·10도 MID로 강제 — 회귀 시 [9, 10] 복원
 const MID_STAGES = new Set([5, 6, 7, 11]); // 탐구질문, 평가, 학습목표, 수업자의도
 const LITE_STAGES = new Set([1, 2, 3, 4, 8]); // 기초정보·성취·핵심·역량·모형 (RAG 단순 선택)
 // 검수(99)·최종검토(100)는 client가 model을 명시해 보낼 때 그대로 사용 (chat.ts useExplicitModel).
