@@ -38,7 +38,7 @@ export const Route = createFileRoute("/api/lessonplan/save")({
         }
 
         const variant = body.variant ? String(body.variant) : null;
-        const model = body.model ? String(body.model) : null;
+        const rawModel = body.model ? String(body.model) : null;
         const meta = (body.meta && typeof body.meta === "object" ? body.meta : {}) as Record<
           string,
           unknown
@@ -47,12 +47,42 @@ export const Route = createFileRoute("/api/lessonplan/save")({
           string,
           unknown
         >;
+        const usageByModelRaw = (body.usageByModel && typeof body.usageByModel === "object"
+          ? body.usageByModel
+          : null) as UsageByModel | null;
         const verifyUsd = Number(body.verifyUsd ?? 0) || 0;
         const promptTokens = Number(usage.prompt ?? 0) || 0;
         const outputTokens = Number(usage.output ?? 0) || 0;
-        const costUsd =
-          estimateCostUsd(model ?? "", promptTokens, outputTokens) + Math.max(0, verifyUsd);
+
+        // 모델별 분해가 있으면 콜마다 실제 단가로 환산(2-Tier 라우팅 정확 반영).
+        // 없으면 구버전 호환: 단일 model 단가로 fallback.
+        let baseCostUsd = 0;
+        let dominantModel = rawModel ? resolveModelId(rawModel) : null;
+        if (usageByModelRaw && Object.keys(usageByModelRaw).length > 0) {
+          // 키를 vendor/model 정규형으로 통일
+          const norm: UsageByModel = {};
+          for (const [k, v] of Object.entries(usageByModelRaw)) {
+            const key = resolveModelId(k);
+            const cur = (norm[key] ||= { prompt: 0, output: 0, calls: 0 });
+            cur.prompt = (cur.prompt ?? 0) + Number(v?.prompt ?? 0);
+            cur.output = (cur.output ?? 0) + Number(v?.output ?? 0);
+            cur.calls = (cur.calls ?? 0) + Number(v?.calls ?? 0);
+          }
+          baseCostUsd = estimateCostUsdByModel(norm);
+          // 출력 토큰 합이 가장 큰 모델을 대표 모델로 저장(요약 표시용)
+          let topOut = -1;
+          for (const [k, v] of Object.entries(norm)) {
+            const o = Number(v?.output ?? 0);
+            if (o > topOut) { topOut = o; dominantModel = k; }
+          }
+          // usageByModel을 usage JSON에 함께 보관해 어드민이 재계산 가능
+          (usage as Record<string, unknown>).byModel = norm;
+        } else {
+          baseCostUsd = estimateCostUsd(rawModel ?? "", promptTokens, outputTokens);
+        }
+        const costUsd = baseCostUsd + Math.max(0, verifyUsd);
         const costKrw = Math.round(costUsd * KRW_PER_USD);
+        const modelToStore = dominantModel ?? rawModel;
 
         const now = new Date();
         const yyyy = now.getUTCFullYear();
