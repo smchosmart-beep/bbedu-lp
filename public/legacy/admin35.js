@@ -115,8 +115,10 @@ const COLS = [
   { key: "학년", label: "학년" }, { key: "학기", label: "학기" }, { key: "교과", label: "교과" },
   { key: "단원", label: "단원" }, { key: "성취기준", label: "성취기준" },
   { key: "수업주제", label: "수업주제" },
-  { key: "모델", label: "모델" },
-  { key: "krw", label: "비용(원)", type: "num" },
+  { key: "모델", label: "대표모델" },
+  { key: "krw", label: "저장시 ₩", type: "num" },
+  { key: "krwLogged", label: "로그 재계산 ₩", type: "num" },
+  { key: "diff", label: "격차", type: "num" },
 ];
 let FILES = [];
 let sortKey = "createdAt", sortDir = -1;
@@ -136,21 +138,47 @@ function renderHead() {
   $("fileHead").innerHTML = ""; $("fileHead").appendChild(tr);
 }
 
+// 모델별 분해 툴팁 — 로그 SSoT가 있으면 그걸, 없으면 클라가 저장한 byModel을 표시
+function byModelTip(f) {
+  const src = f.byModelLogged || f.byModelClient || null;
+  if (!src) return "(모델별 분해 없음 — 구 버전 데이터)";
+  return Object.entries(src).sort((a, b) => (b[1].output || 0) - (a[1].output || 0)).map(([m, v]) => {
+    const pp = Number(v.prompt || 0).toLocaleString();
+    const oo = Number(v.output || 0).toLocaleString();
+    const cc = Number(v.calls || 0);
+    return `${m}: ${cc}콜 · 입력 ${pp} · 출력 ${oo}`;
+  }).join("\n");
+}
+
 function renderFiles() {
   renderHead();
+  // diff = 격차(원). 양수면 로그 SSoT가 저장값보다 큼.
+  const enriched = FILES.map((f) => {
+    const diff = (f.krwLogged != null) ? (Number(f.krwLogged) - Number(f.krw || 0)) : null;
+    return { ...f, diff };
+  });
   const col = COLS.find((c) => c.key === sortKey) || COLS[0];
-  const arr = [...FILES].sort((a, b) => {
+  const arr = [...enriched].sort((a, b) => {
     let x = a[sortKey], y = b[sortKey];
-    if (col.type === "num") { x = x || 0; y = y || 0; return (x - y) * sortDir; }
+    if (col.type === "num") { x = Number(x || 0); y = Number(y || 0); return (x - y) * sortDir; }
     return String(x || "").localeCompare(String(y || ""), "ko") * sortDir;
   });
   const tb = $("fileBody"); tb.innerHTML = "";
   arr.forEach((f) => {
-    const tr = document.createElement("tr"); tr.className = "border-b border-slate-50 hover:bg-slate-50";
+    const tr = document.createElement("tr");
+    // 격차 50원 이상이면 노란 하이라이트(저장 단가 vs 콜 SSoT 불일치 — 회계 신뢰성 시각화)
+    const big = f.diff != null && Math.abs(f.diff) >= 50;
+    tr.className = "border-b border-slate-50 hover:bg-slate-50" + (big ? " bg-amber-50" : "");
     const dt = f.createdAt ? new Date(f.createdAt).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" }) : "—";
     const tk = f.토큰 || {};
-    const costTip = `${(f.calls || 0)}회 호출 · 입력 ${(tk.prompt || 0).toLocaleString()} · 출력 ${(tk.output || 0).toLocaleString()} · 캐시 ${(tk.cached || 0).toLocaleString()} 토큰 (${(f.모델 || "")})`;
+    const tip = `${(f.calls || 0)}회 호출(클라 합계) · 입력 ${(tk.prompt || 0).toLocaleString()} · 출력 ${(tk.output || 0).toLocaleString()}\n\n— 모델별 분해 —\n${byModelTip(f)}\n\nrun_id: ${f.runId || "(없음)"}\n로그 매칭 콜: ${f.loggedCalls || 0}`;
     const costCell = f.krw ? `₩${Number(f.krw).toLocaleString()}` : "—";
+    const loggedCell = (f.krwLogged != null)
+      ? `₩${Number(f.krwLogged).toLocaleString()} <span class="text-[10px] text-slate-400">(${f.loggedCalls || 0}콜)</span>`
+      : `<span class="text-slate-300">—</span>`;
+    const diffCell = (f.diff != null)
+      ? `<span class="${f.diff > 0 ? "text-rose-600" : f.diff < 0 ? "text-sky-600" : "text-slate-400"}">${f.diff > 0 ? "+" : ""}${f.diff.toLocaleString()}</span>`
+      : `<span class="text-slate-300">—</span>`;
     tr.innerHTML =
       `<td class="py-1.5 px-2 whitespace-nowrap text-slate-500">${esc(dt)}</td>
        <td class="px-2">${esc(f.학년)}</td><td class="px-2">${esc(f.학기)}</td><td class="px-2">${esc(f.교과)}</td>
@@ -158,7 +186,9 @@ function renderFiles() {
        <td class="px-2 max-w-[220px] truncate" title="${esc(f.성취기준)}">${esc(f.성취기준)}</td>
        <td class="px-2 max-w-[180px] truncate" title="${esc(f.수업주제)}">${esc(f.수업주제)}</td>
        <td class="px-2 whitespace-nowrap text-slate-600">${esc(f.모델 || "—")}</td>
-       <td class="px-2 text-right whitespace-nowrap text-brand-600 font-medium" title="${esc(costTip)}">${esc(costCell)}</td>
+       <td class="px-2 text-right whitespace-nowrap text-slate-500" title="${esc(tip)}">${esc(costCell)}</td>
+       <td class="px-2 text-right whitespace-nowrap text-brand-600 font-medium" title="${esc(tip)}">${loggedCell}</td>
+       <td class="px-2 text-right whitespace-nowrap font-medium">${diffCell}</td>
        <td class="text-right px-2"></td>`;
     const btn = document.createElement("button");
     btn.className = "text-brand-600 hover:underline whitespace-nowrap";
