@@ -62,19 +62,25 @@ async function loadCostByDay(
   variant?: string | null,
   fromISO?: string | null,
   toISO?: string | null,
-): Promise<Record<string, {
-  usd: number;
-  calls: number;
-  tokens: number;
-  sessions: number;
-  plans: number;
-  models: Record<string, { usd: number; calls: number; tokens: number; prompt: number; output: number }>;
-}>> {
+): Promise<{
+  byDay: Record<string, {
+    usd: number;
+    calls: number;
+    tokens: number;
+    sessions: number;
+    plans: number;
+    models: Record<string, { usd: number; calls: number; tokens: number; prompt: number; output: number }>;
+  }>;
+  byStage: Record<string, {
+    usd: number; calls: number; prompt: number; output: number;
+    models: Record<string, { usd: number; calls: number; prompt: number; output: number }>;
+  }>;
+}> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     let q = supabaseAdmin
       .from("ai_usage_log")
-      .select("ts, model, prompt_tokens, output_tokens, total_tokens, run_id, variant")
+      .select("ts, model, prompt_tokens, output_tokens, total_tokens, run_id, variant, stage")
       .order("ts", { ascending: false })
       .limit(20000);
     if (variant) q = q.eq("variant", variant);
@@ -90,11 +96,14 @@ async function loadCostByDay(
       models: Record<string, { usd: number; calls: number; tokens: number; prompt: number; output: number }>;
       _runs?: Set<string>;
     }> = {};
+    const byStage: Record<string, {
+      usd: number; calls: number; prompt: number; output: number;
+      models: Record<string, { usd: number; calls: number; prompt: number; output: number }>;
+    }> = {};
     for (const row of data ?? []) {
-      const r = row as { ts: string; model: string; prompt_tokens: number; output_tokens: number; total_tokens: number; run_id: string | null };
+      const r = row as { ts: string; model: string; prompt_tokens: number; output_tokens: number; total_tokens: number; run_id: string | null; stage: string | null };
       const ts = new Date(r.ts);
       const kstDay = new Date(ts.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-      // 모델 ID 정규형으로 통일 — 'gemini-3.5-flash'와 'google/gemini-3.5-flash'가 따로 집계되는 현상 차단
       const model = resolveModelId(r.model ?? "unknown");
       const p = Number(r.prompt_tokens ?? 0);
       const o = Number(r.output_tokens ?? 0);
@@ -113,6 +122,12 @@ async function loadCostByDay(
       m.tokens += t;
       m.prompt += p;
       m.output += o;
+      // 단계별 집계 (stage 누락 → "?")
+      const sk = r.stage && String(r.stage).trim() ? String(r.stage) : "?";
+      const sb = (byStage[sk] = byStage[sk] || { usd: 0, calls: 0, prompt: 0, output: 0, models: {} });
+      sb.usd += usd; sb.calls += 1; sb.prompt += p; sb.output += o;
+      const sm = (sb.models[model] = sb.models[model] || { usd: 0, calls: 0, prompt: 0, output: 0 });
+      sm.usd += usd; sm.calls += 1; sm.prompt += p; sm.output += o;
     }
     // hwpx_files 일별 count → plans
     try {
@@ -137,9 +152,9 @@ async function loadCostByDay(
       byDay[k].sessions = byDay[k]._runs ? byDay[k]._runs!.size : 0;
       delete byDay[k]._runs;
     }
-    return byDay;
+    return { byDay, byStage };
   } catch {
-    return {};
+    return { byDay: {}, byStage: {} };
   }
 }
 
@@ -168,8 +183,8 @@ export const Route = createFileRoute("/api/admin/$")({
           const to = url.searchParams.get("to");
           const fromISO = from ? new Date(from + "T00:00:00+09:00").toISOString() : null;
           const toISO = to ? new Date(to + "T23:59:59+09:00").toISOString() : null;
-          const byDay = await loadCostByDay(variant, fromISO, toISO);
-          return Response.json({ byDay, krwPerUsd: KRW_PER_USD, pricing: PRICING });
+          const { byDay, byStage } = await loadCostByDay(variant, fromISO, toISO);
+          return Response.json({ byDay, byStage, krwPerUsd: KRW_PER_USD, pricing: PRICING });
         }
         if (path === "/files") {
           try {

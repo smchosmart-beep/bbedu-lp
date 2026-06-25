@@ -100,7 +100,17 @@
       </div>
       <p class="text-[10px] text-slate-400 mt-1">표시 비용은 <code>ai_usage_log</code>의 콜 단위 토큰을 모델별 단가표로 재계산한 추정치입니다. 실제 청구액(게이트웨이 정산)과 다를 수 있습니다.</p>
     </div>
+    <div class="mt-4">
+      <h3 class="text-xs font-semibold text-slate-600 mb-1">단계별 <span class="font-normal text-slate-400">(stage × 모델 — 라우팅 효과 추적)</span></h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs"><thead class="text-slate-500 border-b">
+          <tr><th class="text-left py-1.5 px-2">stage</th><th class="text-left px-2">단계 설명</th><th class="text-left px-2">주 모델</th><th class="text-right px-2">호출</th><th class="text-right px-2">평균 ₩/콜</th><th class="text-right px-2">입력</th><th class="text-right px-2">출력</th><th class="text-right px-2">비용(₩)</th><th class="text-right px-2">비중</th></tr>
+        </thead><tbody id="byStageBody"></tbody></table>
+      </div>
+      <p class="text-[10px] text-slate-400 mt-1"><code>stage=?</code>는 클라가 stage를 보내지 않은 호출(이전 버전·외부 호출). <code>99</code>=검수, <code>100</code>=최종 검토.</p>
+    </div>
   </section>
+
 
   <!-- HWPX 목록 -->
   <section class="bg-white rounded-3xl shadow-card p-5">

@@ -1844,7 +1844,7 @@ async function verifyPlanQuality() {
     "오직 다음만 문제다: placeholder·임시문구(\"...\",\"예시\",\"내용 입력\",\"TODO\"), 빈 괄호만 있는 값, 글자가 깨졌거나 문장이 중간에 잘린 값.\n" +
     "표현·문체·중복·교육적 적절성·요소 간 유사성·동문서답 여부는 문제로 보지 마라(조금이라도 애매하면 문제 아님으로 처리). 대상학급·일시·차시는 검증 대상이 아니다.\n" +
     "반드시 아래 JSON만 출력하라: {\"issues\":[{\"field\":\"필드명\",\"reason\":\"한 줄 이유\"}]}. 문제가 없으면 {\"issues\":[]}.";
-  const baseBody = { messages: [{ role: "system", content: sys }, { role: "user", content: JSON.stringify(fields) }], json: true, maxTokens: 2000, variant: VARIANT };
+  const baseBody = { messages: [{ role: "system", content: sys }, { role: "user", content: JSON.stringify(fields) }], json: true, maxTokens: 2000, variant: VARIANT, stage: 99, runId: state.runId };
 
   async function callOne(model) {
     try {
@@ -2084,7 +2084,7 @@ async function runExternalReview() {
   }
   const reqBody = {
     messages: [{ role: "system", content: REVIEW_SYS }, { role: "user", content: "다음 교수·학습 과정안을 검토해 주세요(JSON):\n" + JSON.stringify(fields) }],
-    json: true, maxTokens: 1500,
+    json: true, maxTokens: 1500, stage: 100, runId: state.runId,
   };
   const tryModels = ["gemini-3.5-flash", "gemini-3-flash-preview", "gemini-2.5-flash"];
   for (const model of tryModels) {

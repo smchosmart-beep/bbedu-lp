@@ -70,8 +70,9 @@ function renderCosts() {
     const bd = byDay[d];
     tot.usd += bd.usd; tot.calls += bd.calls; tot.tokens += bd.tokens; tot.sessions += bd.sessions || 0; tot.plans += bd.plans || 0;
     Object.entries(bd.models || {}).forEach(([m, v]) => {
-      const o = (byModel[m] = byModel[m] || { usd: 0, calls: 0, tokens: 0 });
+      const o = (byModel[m] = byModel[m] || { usd: 0, calls: 0, tokens: 0, prompt: 0, output: 0 });
       o.usd += v.usd; o.calls += v.calls; o.tokens += v.tokens;
+      o.prompt += v.prompt || 0; o.output += v.output || 0;
     });
   });
   $("cTotalKrw").textContent = won(tot.usd);
@@ -96,6 +97,43 @@ function renderCosts() {
       <td class="text-right px-2 text-slate-400">${pct}%</td>`;
     tb.appendChild(tr);
   });
+
+  // 단계별 표 (stage × model 합산) — 라우팅 효과 추적
+  const STAGE_LABEL = {
+    "1": "기초정보(교과·학년·단원)", "2": "성취기준", "3": "핵심아이디어", "4": "교과역량",
+    "5": "탐구질문", "6": "평가(백워드)", "7": "학습목표/주제", "8": "교수학습모형",
+    "9": "전개 활동 세트", "10": "본문(교사/학생활동)", "11": "수업자의도",
+    "99": "검수(LLM)", "100": "최종 검토", "?": "(stage 미부착)",
+  };
+  const stageTb = $("byStageBody");
+  if (stageTb) {
+    stageTb.innerHTML = "";
+    const byStage = RAWCOSTS.byStage || {};
+    const totalStageUsd = Object.values(byStage).reduce((s, v) => s + v.usd, 0);
+    const stageKeys = Object.keys(byStage).sort((a, b) => {
+      if (a === "?" ) return 1; if (b === "?") return -1;
+      return (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0);
+    });
+    stageKeys.forEach((sk) => {
+      const v = byStage[sk];
+      const mainModel = Object.entries(v.models || {}).sort((a, b) => b[1].calls - a[1].calls)[0];
+      const mainModelName = mainModel ? mainModel[0].replace("google/", "") : "—";
+      const avgKrw = v.calls > 0 ? (v.usd * (RAWCOSTS.krwPerUsd || 1500)) / v.calls : 0;
+      const pct = totalStageUsd > 0 ? Math.round((v.usd / totalStageUsd) * 100) : 0;
+      const tr = document.createElement("tr"); tr.className = "border-b border-slate-50";
+      tr.innerHTML = `<td class="py-1.5 px-2 font-mono text-[11px]">${esc(sk)}</td>
+        <td class="px-2 text-slate-600">${esc(STAGE_LABEL[sk] || "?")}</td>
+        <td class="px-2 font-mono text-[11px] text-slate-500">${esc(mainModelName)}</td>
+        <td class="text-right px-2">${v.calls.toLocaleString()}</td>
+        <td class="text-right px-2 text-slate-500">₩${Math.round(avgKrw).toLocaleString()}</td>
+        <td class="text-right px-2 text-slate-500">${(v.prompt || 0).toLocaleString()}</td>
+        <td class="text-right px-2 text-slate-500">${(v.output || 0).toLocaleString()}</td>
+        <td class="text-right px-2 font-medium text-brand-600">${won(v.usd)}</td>
+        <td class="text-right px-2 text-slate-400">${pct}%</td>`;
+      stageTb.appendChild(tr);
+    });
+  }
+
 
   // 차트: 기간 내 일자를 단위(일/주/월)로 버킷팅
   const rate = RAWCOSTS.krwPerUsd || 1500;
