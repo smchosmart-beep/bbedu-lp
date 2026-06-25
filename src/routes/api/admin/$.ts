@@ -58,7 +58,7 @@ async function setDefaultModel(model: string): Promise<string> {
 
 const KRW_PER_USD = 1500;
 
-async function loadCostByDay(): Promise<Record<string, {
+async function loadCostByDay(variant?: string | null): Promise<Record<string, {
   usd: number;
   calls: number;
   tokens: number;
@@ -68,11 +68,13 @@ async function loadCostByDay(): Promise<Record<string, {
 }>> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin
+    let q = supabaseAdmin
       .from("ai_usage_log")
-      .select("ts, model, prompt_tokens, output_tokens, total_tokens")
+      .select("ts, model, prompt_tokens, output_tokens, total_tokens, run_id, variant")
       .order("ts", { ascending: false })
       .limit(5000);
+    if (variant) q = q.eq("variant", variant);
+    const { data } = await q;
     const byDay: Record<string, {
       usd: number;
       calls: number;
@@ -80,31 +82,56 @@ async function loadCostByDay(): Promise<Record<string, {
       sessions: number;
       plans: number;
       models: Record<string, { usd: number; calls: number; tokens: number }>;
+      _runs?: Set<string>;
     }> = {};
     for (const row of data ?? []) {
-      const ts = new Date((row as { ts: string }).ts);
+      const r = row as { ts: string; model: string; prompt_tokens: number; output_tokens: number; total_tokens: number; run_id: string | null };
+      const ts = new Date(r.ts);
       const kstDay = new Date(ts.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-      const model = (row as { model: string }).model ?? "unknown";
-      const p = Number((row as { prompt_tokens: number }).prompt_tokens ?? 0);
-      const o = Number((row as { output_tokens: number }).output_tokens ?? 0);
-      const t = Number((row as { total_tokens: number }).total_tokens ?? p + o);
+      const model = r.model ?? "unknown";
+      const p = Number(r.prompt_tokens ?? 0);
+      const o = Number(r.output_tokens ?? 0);
+      const t = Number(r.total_tokens ?? p + o);
       const usd = estimateCostUsd(model, p, o);
       const d = (byDay[kstDay] = byDay[kstDay] || {
-        usd: 0, calls: 0, tokens: 0, sessions: 0, plans: 0, models: {},
+        usd: 0, calls: 0, tokens: 0, sessions: 0, plans: 0, models: {}, _runs: new Set<string>(),
       });
       d.usd += usd;
       d.calls += 1;
       d.tokens += t;
+      if (r.run_id) d._runs!.add(r.run_id);
       const m = (d.models[model] = d.models[model] || { usd: 0, calls: 0, tokens: 0 });
       m.usd += usd;
       m.calls += 1;
       m.tokens += t;
+    }
+    // hwpx_files 일별 count → plans
+    try {
+      let hq = supabaseAdmin.from("hwpx_files").select("created_at, variant").limit(5000);
+      if (variant) hq = hq.eq("variant", variant);
+      const { data: hrows } = await hq;
+      for (const hr of hrows ?? []) {
+        const ts = new Date((hr as { created_at: string }).created_at);
+        const kstDay = new Date(ts.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+        const d = (byDay[kstDay] = byDay[kstDay] || {
+          usd: 0, calls: 0, tokens: 0, sessions: 0, plans: 0, models: {}, _runs: new Set<string>(),
+        });
+        d.plans += 1;
+      }
+    } catch {
+      /* ignore */
+    }
+    // sessions = distinct run_id 수
+    for (const k of Object.keys(byDay)) {
+      byDay[k].sessions = byDay[k]._runs ? byDay[k]._runs!.size : 0;
+      delete byDay[k]._runs;
     }
     return byDay;
   } catch {
     return {};
   }
 }
+
 
 export const Route = createFileRoute("/api/admin/$")({
   server: {
