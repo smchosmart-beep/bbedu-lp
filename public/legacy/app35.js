@@ -1113,6 +1113,10 @@ function detectStage(p) {
 /* function calling 지원 호출 — { content, functionCalls } 반환. onRetry(n,total,status)로 재시도 진행 통지 */
 async function callLLM(messages, maxTokens = 16000, onRetry = null) {
   const stage = detectStage(state.partialPlan);
+  // 매 턴 stage에 맞는 system으로 교체 (CORE + STAGE_GUIDE ±1)
+  if (Array.isArray(messages) && messages[0] && messages[0].role === "system") {
+    messages = [{ role: "system", content: buildSystemPrompt(stage) }, ...messages.slice(1)];
+  }
   for (let attempt = 0; ; attempt++) {
     let res;
     try {
