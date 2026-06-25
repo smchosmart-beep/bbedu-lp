@@ -1138,12 +1138,15 @@ async function callLLM(messages, maxTokens = 16000, onRetry = null) {
     }
     if (res.ok) {
       const data = await res.json();
-      const u = data.usage;   // 세션 누적(이 과정안 생성에 든 토큰) — 저장 시 서버가 단가 환산
+      const u = data.usage;   // 세션 누적(이 과정안 생성에 든 토큰) — 저장 시 서버가 모델별 단가 환산
       if (u) {
+        const p = u.promptTokenCount || 0;
+        const o = u.candidatesTokenCount || 0;
         state.usage.calls += 1;
-        state.usage.prompt += u.promptTokenCount || 0;
-        state.usage.output += u.candidatesTokenCount || 0;
+        state.usage.prompt += p;
+        state.usage.output += o;
         state.usage.cached += u.cachedContentTokenCount || 0;
+        accumUsageByModel(data.modelUsed, p, o);
       }
       return { content: data.content || "", functionCalls: data.functionCalls || [] };
     }
