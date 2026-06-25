@@ -33,7 +33,7 @@ async function logUsage(row: {
 }) {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.from("ai_usage_log").insert({
+    const { error } = await supabaseAdmin.from("ai_usage_log").insert({
       user_id: null,
       model: row.model,
       variant: row.variant,
@@ -45,8 +45,9 @@ async function logUsage(row: {
       run_id: row.run_id,
       error: row.error,
     });
-  } catch {
-    /* ignore */
+    if (error) console.error("[ai_usage_log insert failed]", error.message);
+  } catch (e) {
+    console.error("[ai_usage_log insert threw]", e instanceof Error ? e.message : String(e));
   }
   void row.cost_usd;
 }
