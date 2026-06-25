@@ -151,7 +151,8 @@ export const Route = createFileRoute("/api/admin/$")({
           });
         }
         if (path === "/costs") {
-          const byDay = await loadCostByDay();
+          const variant = new URL(request.url).searchParams.get("variant");
+          const byDay = await loadCostByDay(variant);
           return Response.json({ byDay, krwPerUsd: KRW_PER_USD });
         }
         if (path === "/files") {
