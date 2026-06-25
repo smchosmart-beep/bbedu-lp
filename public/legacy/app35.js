@@ -2488,6 +2488,7 @@ function showWelcome() {
   state.pendingCall = null;
   state.callSeq = 0;
   state.usage = { calls: 0, prompt: 0, output: 0, cached: 0 };
+  state.usageByModel = {};
   state.verifyUsd = 0;
   state.reviewNote = null;
   state.completeFails = 0;
