@@ -104,6 +104,45 @@ export type Database = {
         }
         Relationships: []
       }
+      hwpx_files: {
+        Row: {
+          cost_krw: number
+          cost_usd: number
+          created_at: string
+          file_name: string
+          id: string
+          meta: Json
+          model: string | null
+          storage_path: string
+          usage: Json
+          variant: string | null
+        }
+        Insert: {
+          cost_krw?: number
+          cost_usd?: number
+          created_at?: string
+          file_name: string
+          id?: string
+          meta?: Json
+          model?: string | null
+          storage_path: string
+          usage?: Json
+          variant?: string | null
+        }
+        Update: {
+          cost_krw?: number
+          cost_usd?: number
+          created_at?: string
+          file_name?: string
+          id?: string
+          meta?: Json
+          model?: string | null
+          storage_path?: string
+          usage?: Json
+          variant?: string | null
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: Json
