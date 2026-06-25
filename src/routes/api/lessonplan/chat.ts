@@ -74,6 +74,8 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           json,
           system,
           user,
+          stage,
+          forceTier,
         } = body as {
           messages?: unknown;
           tools?: unknown;
@@ -83,6 +85,8 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           json?: boolean;
           system?: string;
           user?: string;
+          stage?: number;
+          forceTier?: Tier;
         };
 
         // Build messages array
@@ -102,11 +106,31 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           return Response.json({ error: "user 메시지가 필요합니다" }, { status: 400 });
         }
 
-        const resolvedModel = resolveModelId(model);
+        // === Tier 결정 (T1 충돌 가드 포함) ===
+        // - json 요청(검수)은 호출자가 forceTier 또는 명시 model 로 직접 모델 선택
+        // - 그 외 일반 챗 호출은 stage 기반 PRIMARY/CHEAP 라우팅
+        let tier: Tier;
+        if (forceTier === "PRIMARY" || forceTier === "CHEAP") {
+          tier = forceTier;
+        } else if (json && model) {
+          // 검수 등 명시 모델 — 클라가 요청한 model 그대로 사용 (tier 무시)
+          tier = "PRIMARY";
+        } else {
+          tier = pickTier(typeof stage === "number" ? stage : null);
+          if (tier === "CHEAP" && hasStageConflict(stage, messages)) tier = "PRIMARY";
+        }
+
+        // 모델 결정: json+model 명시면 그 모델, 아니면 tier 별 디폴트
+        const resolvedModel = json && model ? resolveModelId(model) : pickModelForTier(tier, model);
+        const tcfg = tierConfig(tier);
         const openaiTools = geminiToolsToOpenAI(tools);
-        const tokenCap = Math.max(MIN_TOKENS, Math.min(Number(maxTokens) || 4000, MAX_TOKENS));
+        const tokenCap = Math.max(
+          MIN_TOKENS,
+          Math.min(Number(maxTokens) || tcfg.maxOutputTokens, MAX_TOKENS, tcfg.maxOutputTokens),
+        );
 
         const gateway = createLovableAiGatewayProvider(apiKey);
+
 
         const start = Date.now();
         try {
