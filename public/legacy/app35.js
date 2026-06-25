@@ -2050,12 +2050,14 @@ async function saveLessonPlan(blob, fileName, p) {
     await fetch("/api/lessonplan/save", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        fileName, fileBase64, variant: VARIANT, model: FORCE_MODEL,   // /35: variant 분리 저장 + 고정 모델 단가로 환산
+        fileName, fileBase64, variant: VARIANT, model: FORCE_MODEL,   // /35: variant 분리 저장 + 호환용 단일 model 단가도 전달
         meta: {
           학년: p.학년 || "", 학기: p.학기 || "", 교과: p.교과 || "", 단원: p.단원 || "",
           성취기준: p.성취기준 || "", 수업주제: p.수업주제 || p.학습주제 || "",
+          run_id: state.runId,   // ai_usage_log와 cross-check용 — 어드민이 SSoT 재계산 KRW를 보여줌
         },
-        usage: { ...state.usage },   // 세션 누적 토큰 → 서버가 모델 단가로 비용 환산
+        usage: { ...state.usage },   // 합계(호환)
+        usageByModel: { ...state.usageByModel },   // 모델별 분해 → 서버가 콜 단가로 정확 환산
         verifyUsd: state.verifyUsd || 0,   // 누적 품질 검수 비용 → 서버가 단건 비용에 합산
       }),
     });
