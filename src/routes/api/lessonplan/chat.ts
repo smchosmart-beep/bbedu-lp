@@ -22,6 +22,8 @@ const MAX_TOKENS = 32_768;
 async function logUsage(row: {
   model: string;
   variant: string | null;
+  stage: string | null;
+  run_id: string | null;
   prompt: number;
   output: number;
   total: number;
@@ -35,12 +37,12 @@ async function logUsage(row: {
       user_id: null,
       model: row.model,
       variant: row.variant,
-      stage: null,
+      stage: row.stage,
       prompt_tokens: row.prompt,
       output_tokens: row.output,
       total_tokens: row.total,
       latency_ms: row.latency_ms,
-      run_id: null,
+      run_id: row.run_id,
       error: row.error,
     });
   } catch {
