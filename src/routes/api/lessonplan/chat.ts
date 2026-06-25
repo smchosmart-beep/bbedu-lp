@@ -157,20 +157,51 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
             }
           }
 
-          const result = await generateText({
-            model: gateway(resolvedModel),
-            messages: oaiMessages as never,
-            maxOutputTokens: tokenCap,
-            temperature: 0.7,
-            ...(aiTools ? { tools: aiTools as never, toolChoice: "auto" as never } : {}),
-            ...(json
-              ? ({
-                  providerOptions: {
-                    openaiCompatible: { response_format: { type: "json_object" } },
-                  },
-                } as never)
-              : {}),
-          });
+          // === 실행 + MALFORMED 시 PRIMARY 재시도 ===
+          let modelInUse = resolvedModel;
+          let tcfgInUse = tcfg;
+          let result;
+          let triedFallback = false;
+          // eslint-disable-next-line no-constant-condition
+          while (true) {
+            try {
+              result = await generateText({
+                model: gateway(modelInUse),
+                messages: oaiMessages as never,
+                maxOutputTokens: tokenCap,
+                temperature: tcfgInUse.temperature,
+                ...(aiTools ? { tools: aiTools as never, toolChoice: "auto" as never } : {}),
+                ...(json
+                  ? ({
+                      providerOptions: {
+                        openaiCompatible: { response_format: { type: "json_object" } },
+                      },
+                    } as never)
+                  : {}),
+              });
+              // CHEAP 시도 후 결과가 비어 있거나 JSON 모드인데 파싱 불가 → PRIMARY 폴백
+              if (!triedFallback && tier === "CHEAP" && json) {
+                try {
+                  JSON.parse(result.text || "");
+                } catch {
+                  triedFallback = true;
+                  modelInUse = pickModelForTier("PRIMARY", model);
+                  tcfgInUse = tierConfig("PRIMARY");
+                  continue;
+                }
+              }
+              break;
+            } catch (innerErr) {
+              const msg = innerErr instanceof Error ? innerErr.message : String(innerErr);
+              if (!triedFallback && tier === "CHEAP" && isMalformedSignal(msg)) {
+                triedFallback = true;
+                modelInUse = pickModelForTier("PRIMARY", model);
+                tcfgInUse = tierConfig("PRIMARY");
+                continue;
+              }
+              throw innerErr;
+            }
+          }
 
           const latency = Date.now() - start;
           const usage = result.usage ?? {};
@@ -179,10 +210,10 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           const totalTokens = Number(
             (usage as Record<string, unknown>).totalTokens ?? promptTokens + outputTokens,
           );
-          const costUsd = estimateCostUsd(resolvedModel, promptTokens, outputTokens);
+          const costUsd = estimateCostUsd(modelInUse, promptTokens, outputTokens);
 
           void logUsage({
-            model: resolvedModel,
+            model: modelInUse,
             variant: variant ?? null,
             prompt: promptTokens,
             output: outputTokens,
@@ -225,7 +256,7 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
             }
           }
 
-          // Legacy shape — usage uses Gemini camelCase keys app35.js reads
+          // Legacy shape
           return Response.json({
             content: result.text || "",
             functionCalls,
@@ -248,7 +279,6 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
             cost_usd: 0,
             error: message.slice(0, 500),
           });
-          // Try to classify rate-limit / blocked / etc by message; default 502
           const status = /\b429\b/.test(message) ? 429 : /\b402\b/.test(message) ? 402 : 502;
           return Response.json({ error: `AI Gateway 오류`, detail: message.slice(0, 500) }, { status });
         }
