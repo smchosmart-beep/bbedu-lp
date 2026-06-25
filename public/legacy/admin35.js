@@ -234,7 +234,10 @@ const WORKFLOW_INTRO = `
       <li><b>HWPX 다운로드</b> — 완성 시 한글 문서(.hwpx) 생성(활동 수에 맞춰 템플릿 자동 선택)</li>
       <li><b>검증(🔎) 버튼</b> — 현재 과정안의 빈 칸·흐름·무의미 값을 점검해 안내</li>
       <li><b>세션 자동 저장·복원</b> — 새로고침해도 이어서 진행(localStorage)</li>
-      <li><b>3.5-flash 고정 (/35)</b> — generateContent + explicit 컨텍스트 캐시로 입력 비용 절감, <code>variant=v35</code>로 메인과 분리 집계</li>
+      <li><b>2-Tier 라우팅 (/35)</b> — 중요 단계는 <code>gemini-3.5-flash</code>(PRIMARY), RAG·단순 단계는 <code>gemini-3-flash-preview</code>(CHEAP). 단계 충돌·MALFORMED·JSON 파싱 실패 시 PRIMARY 자동 폴백. <code>FORCE_PRIMARY=true</code>로 즉시 롤백 가능</li>
+      <li><b>동적 시스템 프롬프트</b> — CORE(상시) + STAGE_GUIDES(현재 stage ±1)만 주입해 입력 토큰 ~30~40% 절감. 회귀 시 <code>FORCE_FULL_PROMPT=true</code>로 전체 주입 복원</li>
+      <li><b>2-Step A/B 검증</b> — 완료 검토를 <code>2.5-flash-lite</code>(A) → <code>3-flash-preview</code>(B) 2단으로 축소, A에서 결함 발견 시 즉시 종료해 비용 절감, 둘 다 실패 시에만 <code>3.5-flash</code>로 폴백</li>
+      <li><b>variant 분리 집계</b> — <code>variant=v35</code>로 메인과 분리 집계</li>
       <li><b>시작 화면 자유 입력</b> — 주제뿐 아니라 수업 의도·아이디어·강조점을 적으면 설계 전반에 반영</li>
     </ul>
   </div>
