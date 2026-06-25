@@ -2473,6 +2473,7 @@ function showWelcome() {
   state.registered = false;   // 새 세션 — 검증 통과 시 다시 등록 가능
   state.interactionId = null;
   state.interInput = null;
+  state.runId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : ("r" + Date.now() + "-" + Math.random().toString(36).slice(2, 10));
   chatEl().innerHTML = "";
   clearQuick();
   setComposerEnabled(false);
