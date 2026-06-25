@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ko" class="h-full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>질문이 있는 교수·학습 과정안 도우미</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Pretendard','system-ui','sans-serif'] },
+        colors: { brand: { 50:'#ecfdf5', 100:'#d1fae5', 500:'#10b981', 600:'#059669', 700:'#047857' } },
+        boxShadow: { card: '0 1px 3px 0 rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1)' }
+      }
+    }
+  }
+</script>
+<link rel="stylesheet" href="./styles.css?v=58">
+</head>
+<body class="h-full flex flex-col bg-slate-50 text-slate-900 font-sans antialiased">
+
+<!-- 헤더 -->
+<header class="flex-none z-10">
+  <div class="px-5 py-3.5 flex items-center gap-3">
+    <img src="logo.png?v=1" alt="서울특별시북부교육지원청" class="w-10 h-10 flex-none object-contain">
+    <div>
+      <h1 class="text-base font-semibold leading-tight">질문이 있는 교수·학습 과정안 도우미</h1>
+      <p class="text-xs text-slate-500 leading-tight">2026 서울특별시북부교육지원청</p>
+    </div>
+    <button id="adminBtn" class="ml-auto text-xs px-3.5 py-2 rounded-2xl bg-white shadow-card text-slate-600 hover:text-slate-900 flex-none transition-colors">🔒 관리자</button>
+    <button id="resetBtn" class="ml-auto text-xs px-3.5 py-2 rounded-2xl bg-white shadow-card text-slate-600 hover:text-slate-900 flex-none transition-colors hidden">↺ 새로 시작</button>
+  </div>
+  <div id="progress" class="px-5 pb-1">
+    <div class="flex items-center gap-1.5 text-[11px]"></div>
+  </div>
+</header>
+
+<!-- 본문 -->
+<div class="flex flex-1 overflow-hidden gap-4 px-5 pb-5 pt-1">
+
+  <!-- ── 시작 화면: 기본 정보 입력 ── -->
+  <div id="welcome" class="flex-1 flex overflow-y-auto">
+    <div class="m-auto w-full max-w-lg px-4 py-6 text-center">
+      <div class="relative mx-auto mb-4 w-16 h-16">
+        <div class="w-16 h-16 rounded-[20px] bg-brand-500 grid place-items-center shadow-card">
+          <span class="text-white text-3xl font-extrabold leading-none">?</span>
+        </div>
+        <span class="absolute -right-1.5 -top-1.5 text-brand-400 text-lg select-none">✦</span>
+      </div>
+      <h2 class="text-xl font-bold text-slate-900">어떤 수업을 함께 설계해 볼까요?</h2>
+      <p class="text-sm text-brand-600 mt-2 mb-6">먼저 기본 정보를 입력해 주세요. 이후 챗봇이 안내합니다.</p>
+      <form id="startForm" class="bg-white rounded-3xl shadow-card p-5 text-left space-y-3.5">
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="sf-label" for="sfGrade">학년</label>
+            <select id="sfGrade" class="sf-field">
+              <option>1학년</option><option>2학년</option><option selected>3학년</option>
+              <option>4학년</option><option>5학년</option><option>6학년</option>
+            </select>
+          </div>
+          <div>
+            <label class="sf-label" for="sfSemester">학기</label>
+            <select id="sfSemester" class="sf-field">
+              <option>1학기</option><option selected>2학기</option>
+            </select>
+          </div>
+          <div>
+            <label class="sf-label" for="sfSubject">교과</label>
+            <select id="sfSubject" class="sf-field">
+              <option>국어</option><option>도덕</option><option>사회</option><option>수학</option>
+              <option>과학</option><option>체육</option><option>음악</option><option>미술</option><option>영어</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="sf-label" for="sfPublisher">교과서(출판사)</label>
+          <select id="sfPublisher" class="sf-field"></select>
+        </div>
+        <div>
+          <label class="sf-label" for="sfUnitSel">단원</label>
+          <select id="sfUnitSel" class="sf-field"></select>
+          <input id="sfUnit" type="text" class="sf-field mt-2 hidden" placeholder="단원명 직접 입력 (예: 프로젝트 단원)">
+        </div>
+        <div>
+          <label class="sf-label" for="sfTopic">수업 주제 · 아이디어 <span class="font-normal text-slate-400">(자유롭게 — 이번 차시 내용, 강조점, 수업 의도 등)</span></label>
+          <textarea id="sfTopic" class="sf-field" rows="4" placeholder="예) 자석에 붙는 물체와 붙지 않는 물체를 직접 분류해 보게 하고 싶어요. 일상에서 자석이 쓰이는 예와 연결하고, 모둠 탐구 활동 중심으로 진행하면 좋겠어요. (한 줄로 주제만 적으셔도 됩니다)" required></textarea>
+        </div>
+        <button type="submit" class="sf-submit">이 수업 설계 시작하기 →</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── 작업 공간: 시작 후 좌우 분할 ── -->
+  <div id="workspace" class="hidden flex-1 flex gap-4 min-w-0 overflow-hidden">
+
+  <!-- ── 좌측: 채팅 패널 ── -->
+  <div class="flex flex-col w-[46%] rounded-3xl bg-white shadow-card min-w-0 overflow-hidden">
+
+    <!-- 채팅 메시지 영역 -->
+    <main id="chat" class="flex-1 overflow-y-auto px-5 py-5 space-y-4"></main>
+
+    <!-- 입력 컴포저 -->
+    <div id="composer" class="flex-none px-4 pb-4">
+      <div id="quickArea" class="mb-2"></div>
+      <div class="flex items-end gap-2 rounded-3xl border border-slate-200 bg-white px-3 py-2 focus-within:border-brand-500 transition-colors">
+        <textarea id="input" rows="1" placeholder="답변을 입력하세요"
+          class="flex-1 resize-none bg-transparent px-1 py-1.5 text-sm focus:outline-none placeholder:text-slate-400"></textarea>
+        <button id="sendBtn" class="px-4 py-2 rounded-2xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium disabled:opacity-40 flex-none transition-colors">보내기</button>
+      </div>
+      <p class="text-[10.5px] text-slate-400 mt-2 px-2">생성된 내용은 검토 후 사용하세요. 생성된 교수학습과정안의 저작권은 사용자에게 있습니다.</p>
+    </div>
+  </div>
+
+  <!-- ── 우측: 과정안 미리보기 패널 ── -->
+  <div class="flex flex-col flex-1 min-w-0">
+
+    <!-- 미리보기 카드 -->
+    <div class="flex flex-col flex-1 rounded-3xl bg-white shadow-card min-h-0 overflow-hidden">
+      <div class="flex-none flex items-center justify-between gap-2 px-5 py-2.5 border-b border-slate-100">
+        <span class="text-sm font-semibold text-slate-700">📄 미리보기 및 직접 수정 <span class="font-normal text-[11px] text-slate-400">(칸을 눌러 고칠 수 있어요)</span></span>
+        <div class="flex-none flex items-center gap-1.5">
+          <button id="reviewBtn"
+            class="text-xs px-3 py-1.5 rounded-xl bg-white border border-brand-500 text-brand-600 hover:bg-brand-50 font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors">🔎 검증</button>
+          <button id="dlBtn"
+            class="text-xs px-3 py-1.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors">⬇ HWPX 다운로드</button>
+        </div>
+      </div>
+      <div id="planPreview" class="flex-1 overflow-y-auto px-4 py-4">
+        <!-- app.js에서 동적으로 채워짐 -->
+      </div>
+    </div>
+
+  </div>
+  </div><!-- /workspace -->
+</div>
+
+<script src="./app.js?v=186"></script>
+</body>
+</html>
