@@ -205,27 +205,51 @@ export const Route = createFileRoute("/api/admin/$")({
                 return typeof rid === "string" && rid ? rid : null;
               })
               .filter((x): x is string => !!x);
-            const krwLoggedByRun: Record<string, { usd: number; calls: number; byModel: Record<string, { prompt: number; output: number; calls: number; usd: number }> }> = {};
+            type Bucket = { usd: number; calls: number };
+            type RunAgg = {
+              usd: number; calls: number;
+              byModel: Record<string, { prompt: number; output: number; calls: number; usd: number }>;
+              byBucket: { build: Bucket; verify: Bucket; retry: Bucket };
+              stageSeen: Record<string, number>;
+            };
+            const krwLoggedByRun: Record<string, RunAgg> = {};
             if (runIds.length > 0) {
               const { data: logs } = await supabaseAdmin
                 .from("ai_usage_log")
-                .select("run_id, model, prompt_tokens, output_tokens")
+                .select("run_id, model, stage, prompt_tokens, output_tokens")
                 .in("run_id", runIds)
                 .limit(50000);
               for (const row of logs ?? []) {
-                const r = row as { run_id: string; model: string; prompt_tokens: number; output_tokens: number };
+                const r = row as { run_id: string; model: string; stage: number | string | null; prompt_tokens: number; output_tokens: number };
                 if (!r.run_id) continue;
                 const mid = resolveModelId(r.model ?? "unknown");
                 const p = Number(r.prompt_tokens ?? 0);
                 const o = Number(r.output_tokens ?? 0);
                 const usd = estimateCostUsd(mid, p, o);
-                const entry = (krwLoggedByRun[r.run_id] ||= { usd: 0, calls: 0, byModel: {} });
+                const entry = (krwLoggedByRun[r.run_id] ||= {
+                  usd: 0, calls: 0, byModel: {},
+                  byBucket: { build: { usd: 0, calls: 0 }, verify: { usd: 0, calls: 0 }, retry: { usd: 0, calls: 0 } },
+                  stageSeen: {},
+                });
                 entry.usd += usd;
                 entry.calls += 1;
                 const mb = (entry.byModel[mid] ||= { prompt: 0, output: 0, calls: 0, usd: 0 });
                 mb.prompt += p; mb.output += o; mb.calls += 1; mb.usd += usd;
+                // 본문/검수 분류 (stage 99·100 = 검수/최종검토)
+                const stageNum = Number(r.stage);
+                const isVerify = stageNum === 99 || stageNum === 100;
+                const bucket = isVerify ? entry.byBucket.verify : entry.byBucket.build;
+                bucket.usd += usd; bucket.calls += 1;
+                // 재시도 추정 — 같은 (run_id, stage) 2회차부터 retry 버킷에도 별도 집계
+                const sKey = String(r.stage ?? "_");
+                const seen = (entry.stageSeen[sKey] = (entry.stageSeen[sKey] || 0) + 1);
+                if (seen >= 2) {
+                  entry.byBucket.retry.usd += usd;
+                  entry.byBucket.retry.calls += 1;
+                }
               }
             }
+
             const items = (data ?? []).map((r) => {
               const u = (r.usage ?? {}) as Record<string, unknown>;
               const m = (r.meta ?? {}) as Record<string, unknown>;
