@@ -2526,6 +2526,8 @@ function showWelcome() {
   state.verifyUsd = 0;
   state.reviewNote = null;
   state.completeFails = 0;
+  state.completeBlocked = false;
+  state.regenCount = {};
   state.confirmedChoices = new Set();
   state.registered = false;   // 새 세션 — 검증 통과 시 다시 등록 가능
   state.interactionId = null;
