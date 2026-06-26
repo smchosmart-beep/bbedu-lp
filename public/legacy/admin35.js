@@ -353,7 +353,7 @@ async function loadAll() {
 const WORKFLOW_INTRO = `
   <div>
     <h3 class="font-semibold text-slate-800 mb-1">개요</h3>
-    <p class="leading-relaxed">단일 LLM 대화 + <b>함수 호출(function calling)</b>로 과정안을 완성합니다. 정확성이 필요한 교육과정 데이터는 RAG 함수로 조회하고, 화면 표시·확정은 UI/제어 함수로 처리합니다. 이 버전(<code>/35</code>)은 <b>3-Tier 모델 라우팅</b>으로 동작합니다 — <b>PRIMARY</b> <code>gemini-3.5-flash</code> = 단계 6(평가)·9·10(전개활동), <b>MID</b> <code>gemini-3-flash-preview</code> = 단계 5·7·11(수업자의도)·검수(99)·최종검토(100), <b>LITE</b> <code>gemini-3-flash-preview</code>(8K) = 단계 1~4·8. 알 수 없는 stage는 MID로 안전 폴백. 클라이언트 <code>detectStage()</code> SSoT와 서버 <code>hasStageConflict</code> 가드로 단계 충돌 시 한 tier 자동 격상, <code>MALFORMED</code>·JSON 파싱 실패 시에도 한 tier 격상으로 1회 폴백합니다. 시스템 프롬프트는 <b>CORE(상시) + STAGE_GUIDES(현재 stage ±1)</b>로 동적 조립해 입력 토큰을 약 30~40% 절감합니다. 트래픽은 <code>variant=v35</code>로 메인과 분리 집계됩니다.</p>
+    <p class="leading-relaxed">단일 LLM 대화 + <b>함수 호출(function calling)</b>로 과정안을 완성합니다. 정확성이 필요한 교육과정 데이터는 RAG 함수로 조회하고, 화면 표시·확정은 UI/제어 함수로 처리합니다. 이 버전(<code>/35</code>)은 <b>3-Tier 모델 라우팅</b>으로 동작합니다 — <b>PRIMARY</b> <code>gemini-3.5-flash</code> = 단계 6(평가)·9·10(전개활동), <b>MID</b> <code>gemini-2.5-flash</code> = 단계 5·7·검수(99 B차)·최종검토(100), <b>예외</b> <code>gemini-3-flash-preview</code> = 단계 11(수업자의도), <b>LITE</b> <code>gemini-2.5-flash</code>(8K) = 단계 1~4·8. 검수 1차는 <code>gemini-2.5-flash-lite</code>. 알 수 없는 stage는 MID로 안전 폴백. 클라이언트 <code>detectStage()</code> SSoT와 서버 <code>hasStageConflict</code> 가드로 단계 충돌 시 한 tier 자동 격상, <code>MALFORMED</code>·JSON 파싱 실패 시에도 한 tier 격상으로 1회 폴백합니다. 시스템 프롬프트는 <b>CORE(상시) + STAGE_GUIDES(현재 stage ±1)</b>로 동적 조립해 입력 토큰을 약 30~40% 절감합니다. 트래픽은 <code>variant=v35</code>로 메인과 분리 집계됩니다.</p>
   </div>
   <div>
     <h3 class="font-semibold text-slate-800 mb-1">진행 흐름</h3>
