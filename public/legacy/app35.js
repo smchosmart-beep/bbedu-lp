@@ -71,6 +71,7 @@ const CORE_PROMPT = `당신은 한국 초등 교사의 2022 개정 교육과정 
 - 모든 설계가 끝나면(수업자 의도까지) complete_plan을 호출해 완료 처리합니다.
 - 변경 내역·이유를 물으면("어떻게 고쳤어?·왜 바꿨어?·설명해 줘") 함수를 호출하지 않고 글로만, 무엇을 왜 어떻게 바꿨는지 항목별로 설명합니다(complete_plan 이후에도). 사용자가 "그만 고치라"고 하면 수정을 멈추고 묻는 말에만 답합니다.
 - 도구 호출 자체나 도구 결과(JSON)는 사용자에게 텍스트로 다시 적지 마세요. "[도구 결과: …]"·"{\"fields\": …}"·"{\"ok\": true}" 같은 줄을 채팅 답변에 넣지 않습니다. 도구 호출은 함수 호출로만 실행하고, 의미(무엇을·왜)는 한국어 한 줄 요약으로만 전달합니다.
+- 도구는 도구 호출로만 표현합니다. 본문에 \`present_choices(...)\` · \`update_plan(...)\` · \`태그:\` · \`호출:\` 같은 함수 표기를 절대 적지 마세요(적었더라도 사용자에게는 보이지 않으며, 카드도 뜨지 않습니다).
 - 사용자는 카드 대신 입력창에 말로 답할 수도 있습니다("'교과역량'에 대한 사용자 답변: 정보활용능력"). 그 답을 해당 항목의 선택으로 받아, 필요하면 RAG 결과에 맞게 다듬어(예: "정보" → "정보 활용 능력") update_plan으로 반영하고 다음 단계로 진행합니다.
 
 [정보 수집]
@@ -335,6 +336,9 @@ function addBot(text) {
   raw = raw.replace(/^[ \t]*\{?\s*"fields"\s*:[\s\S]*?\]\s*\}?\s*$/gm, '');
   raw = raw.replace(/^[ \t]*\[?\s*\{\s*"key"\s*:[\s\S]*?\}\s*\]?\s*$/gm, '');
   raw = raw.replace(/^[ \t]*\{?\s*"ok"\s*:\s*(?:true|false)[\s\S]*?\}\s*$/gm, '');
+  // 함수 호출형/레이블형 누출(예: "태그: present_choices(...)", "update_plan(...)") — 한 줄 한정·도구명 화이트리스트
+  raw = raw.replace(/^[ \t]*(?:태그|호출|도구\s*호출)\s*:\s*(?:present_choices|update_plan|complete_plan|regenerate_choices)\b[^\n]*$/gm, '');
+  raw = raw.replace(/^[ \t]*(?:present_choices|update_plan|complete_plan|regenerate_choices)\s*\([^\n]*\)\s*$/gm, '');
   raw = raw.replace(/\n{3,}/g, '\n\n').trim();
   const processed = styleLabels(raw);
   const bubble = addMsg(renderMarkdown(processed));
@@ -342,6 +346,34 @@ function addBot(text) {
   return bubble;
 }
 function addUser(text) { return addMsg(escapeHTML(text), "user"); }
+
+/* 모델이 present_choices를 본문 텍스트로 적은 경우를 파싱.
+   성공 시 {field, intro, options[], multi, allow_custom, allow_none, allow_regenerate} 반환, 실패 시 null. */
+function parseLeakedPresentChoices(text) {
+  if (!text || typeof text !== "string") return null;
+  const m = text.match(/present_choices\s*\(([\s\S]*?)\)\s*$/m);
+  if (!m) return null;
+  const body = m[1];
+  const pick = (re) => { const x = body.match(re); return x ? x[1] : null; };
+  const pickBool = (re) => { const x = body.match(re); return x ? x[1] === "true" : undefined; };
+  const field = pick(/\bfield\s*=\s*"([^"]+)"/);
+  const intro = pick(/\bintro\s*=\s*"((?:[^"\\]|\\.)*)"/) || "";
+  const multi = pickBool(/\bmulti\s*=\s*(true|false)/);
+  const allow_custom = pickBool(/\ballow_custom\s*=\s*(true|false)/);
+  const allow_none = pickBool(/\ballow_none\s*=\s*(true|false)/);
+  const allow_regenerate = pickBool(/\ballow_regenerate\s*=\s*(true|false)/);
+  const optsBlock = body.match(/\boptions\s*=\s*\[([\s\S]*?)\]/);
+  if (!optsBlock) return null;
+  const options = [];
+  const re = /"((?:[^"\\]|\\.)*)"/g;
+  let mm;
+  while ((mm = re.exec(optsBlock[1])) !== null) {
+    options.push(mm[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\'));
+  }
+  if (!field || options.length === 0) return null;
+  return { field, intro, options, multi, allow_custom, allow_none, allow_regenerate };
+}
+
 
 function addLoader() {
   return addMsg(`<span class="spinner"></span> <span class="loader-text text-slate-500 text-sm">생각 중…</span>`);
@@ -1385,10 +1417,34 @@ async function runConversation() {
         // 순수 텍스트 응답 — 턴 종료(또는 재요청). 재요청을 유발한 '잘못된' 텍스트는 화면에 표시하지 않고
         // 스피너만 유지한다(올바른 결과만 보이게). 히스토리(state.messages)에는 남겨 모델 맥락 유지.
         state.messages.push({ role: "assistant", content: content || "" });
+        // 누출 처리: 모델이 present_choices를 함수 호출이 아니라 텍스트로 적은 경우 — 파싱해 즉시 카드를 띄운다.
+        // (오탐 가드: field가 있고 옵션이 3개 이상일 때만 렌더; 그 외엔 폴백.)
+        const leak = parseLeakedPresentChoices(content || "");
+        if (leak && leak.field && Array.isArray(leak.options) && leak.options.length >= 3) {
+          if (loader) { removeLoader(loader); loader = null; }
+          state.messages.push({
+            role: "user",
+            content: "이전 응답에서 present_choices를 텍스트로 적었습니다. 앞으로는 반드시 실제 함수 호출로만 표현하세요. 이번엔 클라이언트가 텍스트에서 후보를 파싱해 카드를 띄웠습니다.",
+          });
+          const _leakId = `call_${state.callSeq++}`;
+          const cardArgs = {
+            field: leak.field,
+            intro: leak.intro || "",
+            options: leak.options,
+            multi: !!leak.multi,
+            custom: leak.allow_custom !== false,
+            none: !!leak.allow_none,
+            regenerate: !!leak.allow_regenerate,
+          };
+          state.pendingCall = { tool_call_id: _leakId, name: "present_choices", cardArgs };
+          showChoiceCard(cardArgs);
+          state.loading = false; setComposerEnabled(true); updateProgress(); saveState();
+          return;
+        }
         // "골라/선택해 주세요·추천해 드립니다"라 안내하고 present_choices를 빠뜨렸으면 1회 자동 재요청
         if (!choiceRetried && /(골라|선택해|선택하여|고르)\s*주세요|고르세요|추천해\s*드립니다|선택해\s*주십시오/.test(content || "")) {
           choiceRetried = true;
-          state.messages.push({ role: "user", content: "방금 안내한 항목의 선택지를 지금 present_choices 카드로 띄워 주세요(채팅에 번호로 나열하지 말고)." });
+          state.messages.push({ role: "user", content: "방금 안내한 항목의 선택지를 지금 present_choices 카드로 띄워 주세요(채팅에 번호로 나열하지 말고). 도구는 채팅 본문에 텍스트(예: '태그: present_choices(...)')로 적지 말고 반드시 실제 함수 호출로 보내세요." });
           if (!loader) loader = addLoader();
           continue;
         }
