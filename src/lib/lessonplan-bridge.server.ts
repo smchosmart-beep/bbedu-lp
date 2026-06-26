@@ -21,10 +21,10 @@ export function resolveModelId(raw?: string | null): string {
 }
 
 // === 비용 최적화: 3-Tier 라우팅 ===
-// PRIMARY (본문·검토)  : gemini-3.5-flash  — 품질 최우선
+// PRIMARY (본문·검토)  : gemini-3-flash-preview — MID와 동일 모델, tier별 토큰/온도만 분리
 // MID     (창의·정형)  : gemini-3-flash-preview — 3배 저렴, 폴백 안전망 있음
 // LITE    (RAG·선택)   : gemini-3-flash-preview — 후속 turn에서 flash-lite로 승격 예정
-export const PRIMARY_MODEL = "google/gemini-3.5-flash";
+export const PRIMARY_MODEL = "google/gemini-3-flash-preview";
 export const MID_MODEL = "google/gemini-3-flash-preview";
 export const LITE_MODEL = "google/gemini-3-flash-preview";
 export const CHEAP_MODEL = MID_MODEL; // 하위 호환
