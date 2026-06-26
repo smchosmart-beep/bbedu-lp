@@ -912,19 +912,32 @@ function showChoiceCard(c) {
     onChoiceSubmit(c.field, picks, pickedNone, customText);
   });
 
-  // 다른 후보 추천받기 — 같은 항목으로 새 후보를 다시 요청
+  // 다른 후보 추천받기 — 같은 항목으로 새 후보를 다시 요청 (run 단위 3회 상한)
   if (regenBtn) {
-    regenBtn.addEventListener("click", () => {
-      if (!state.pendingCall) return;
-      inputs.forEach((x) => x.disabled = true);
-      textarea.disabled = true;
-      submitBtn.disabled = true;
+    const REGEN_MAX = 3;
+    const fldNorm = normField(c.field);
+    const used = (state.regenCount[fldNorm] || 0);
+    if (used > 0) {
+      regenBtn.textContent = `🔄 다른 후보 추천받기 (${used}/${REGEN_MAX})`;
+    }
+    if (used >= REGEN_MAX) {
       regenBtn.disabled = true;
-      regenBtn.textContent = "🔄 다시 추천 중…";
-      state.confirmedChoices.delete(normField(c.field));   // 사용자가 이 항목의 다른 후보를 요청 → 그 항목만 가드 해제
-      addUser(`다른 ${c.field} 후보를 추천해 주세요`);
-      answerPendingCall({ field: c.field, regenerate: true });
-    });
+      regenBtn.title = "비용 절약을 위해 이번 항목은 직접 입력해 주세요.";
+      regenBtn.textContent = `🔄 추천 한도 도달 (${REGEN_MAX}/${REGEN_MAX})`;
+    } else {
+      regenBtn.addEventListener("click", () => {
+        if (!state.pendingCall) return;
+        state.regenCount[fldNorm] = (state.regenCount[fldNorm] || 0) + 1;
+        inputs.forEach((x) => x.disabled = true);
+        textarea.disabled = true;
+        submitBtn.disabled = true;
+        regenBtn.disabled = true;
+        regenBtn.textContent = `🔄 다시 추천 중… (${state.regenCount[fldNorm]}/${REGEN_MAX})`;
+        state.confirmedChoices.delete(fldNorm);   // 사용자가 이 항목의 다른 후보를 요청 → 그 항목만 가드 해제
+        addUser(`다른 ${c.field} 후보를 추천해 주세요`);
+        answerPendingCall({ field: c.field, regenerate: true });
+      });
+    }
   }
 }
 
