@@ -28,7 +28,7 @@ async function tryLogin(pw) {
   return res.ok;
 }
 
-/* ── 모델: /35는 gemini-3.5-flash 코드 고정 ──
+/* ── 모델: /35는 gemini-3-flash-preview 코드 고정 ──
    전역 모델 설정(config/app.geminiModel)을 바꾸면 메인(/)에도 영향가므로, 이 관리자에는 모델 변경 UI를 두지 않는다.
    환율(rate)은 loadCosts가 채운다. */
 
