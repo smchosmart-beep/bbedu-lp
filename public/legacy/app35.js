@@ -1389,10 +1389,34 @@ async function runConversation() {
         // 순수 텍스트 응답 — 턴 종료(또는 재요청). 재요청을 유발한 '잘못된' 텍스트는 화면에 표시하지 않고
         // 스피너만 유지한다(올바른 결과만 보이게). 히스토리(state.messages)에는 남겨 모델 맥락 유지.
         state.messages.push({ role: "assistant", content: content || "" });
+        // 누출 처리: 모델이 present_choices를 함수 호출이 아니라 텍스트로 적은 경우 — 파싱해 즉시 카드를 띄운다.
+        // (오탐 가드: field가 있고 옵션이 3개 이상일 때만 렌더; 그 외엔 폴백.)
+        const leak = parseLeakedPresentChoices(content || "");
+        if (leak && leak.field && Array.isArray(leak.options) && leak.options.length >= 3) {
+          if (loader) { removeLoader(loader); loader = null; }
+          state.messages.push({
+            role: "user",
+            content: "이전 응답에서 present_choices를 텍스트로 적었습니다. 앞으로는 반드시 실제 함수 호출로만 표현하세요. 이번엔 클라이언트가 텍스트에서 후보를 파싱해 카드를 띄웠습니다.",
+          });
+          const _leakId = `call_${state.callSeq++}`;
+          const cardArgs = {
+            field: leak.field,
+            intro: leak.intro || "",
+            options: leak.options,
+            multi: !!leak.multi,
+            custom: leak.allow_custom !== false,
+            none: !!leak.allow_none,
+            regenerate: !!leak.allow_regenerate,
+          };
+          state.pendingCall = { tool_call_id: _leakId, name: "present_choices", cardArgs };
+          showChoiceCard(cardArgs);
+          state.loading = false; setComposerEnabled(true); updateProgress(); saveState();
+          return;
+        }
         // "골라/선택해 주세요·추천해 드립니다"라 안내하고 present_choices를 빠뜨렸으면 1회 자동 재요청
         if (!choiceRetried && /(골라|선택해|선택하여|고르)\s*주세요|고르세요|추천해\s*드립니다|선택해\s*주십시오/.test(content || "")) {
           choiceRetried = true;
-          state.messages.push({ role: "user", content: "방금 안내한 항목의 선택지를 지금 present_choices 카드로 띄워 주세요(채팅에 번호로 나열하지 말고)." });
+          state.messages.push({ role: "user", content: "방금 안내한 항목의 선택지를 지금 present_choices 카드로 띄워 주세요(채팅에 번호로 나열하지 말고). 도구는 채팅 본문에 텍스트(예: '태그: present_choices(...)')로 적지 말고 반드시 실제 함수 호출로 보내세요." });
           if (!loader) loader = addLoader();
           continue;
         }
