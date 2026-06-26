@@ -1978,8 +1978,8 @@ async function verifyPlanQuality() {
   if (b.ok) return { issues: b.issues, unavailable: false };
   if (a.ok) return { issues: a.issues, unavailable: false };
 
-  // 둘 다 실패 → gemini-3-flash-preview 최종 폴백
-  const c = await callOne("gemini-3-flash-preview");
+  // 둘 다 실패 → gemini-3.5-flash 최종 폴백
+  const c = await callOne("gemini-3.5-flash");
   if (c.ok) return { issues: c.issues, unavailable: false };
   return { issues: [], unavailable: true };
 }
