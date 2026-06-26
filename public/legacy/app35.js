@@ -1408,11 +1408,12 @@ async function runConversation() {
       for (const tr of toolResults) {
         state.messages.push({ role: "tool", tool_call_id: tr.id, name: tr.name, content: tr.content });
       }
-      // 가드: complete_plan이 검토를 거듭(누적 3회) 통과 못 하면(예: 특정 필드가 계속 비거나 오염)
-      // 무한 재시도를 멈추고 사용자가 직접 수정하도록 안내한다.
-      if ((state.completeFails || 0) >= 3) {
+      // 가드: complete_plan이 연속 2회 ok:false면 자동 재호출을 멈추고 사용자에게 위임.
+      // state.completeBlocked=true 로 잠궈 이 run에서 더 이상 자동 complete_plan 시도를 막는다.
+      if ((state.completeFails || 0) >= 2) {
         if (loader) { removeLoader(loader); loader = null; }
-        addBot("자동 검토를 여러 번 통과하지 못했어요. 오른쪽 미리보기에서 비어 있거나 어색한 칸을 직접 확인·수정하신 뒤 ⬇ HWPX 다운로드를 눌러 주세요.");
+        state.completeBlocked = true;
+        addBot("자동 검토를 2회 통과하지 못했어요. 오른쪽 미리보기에서 비어 있거나 어색한 칸(특히 '수업자 의도')을 직접 확인·수정하신 뒤 ⬇ HWPX 다운로드를 눌러 주세요. 추가 자동 재시도는 비용 절약을 위해 멈췄습니다.");
         state.completeFails = 0;
         exhausted = false;
         break;
