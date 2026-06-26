@@ -290,6 +290,7 @@ export const Route = createFileRoute("/api/admin/$")({
                 byModelLogged: logged ? logged.byModel : null,
                 byModelClient,
                 costBuckets,
+                retryByStage,
                 runId: rid ?? null,
                 calls: Number(u.calls ?? 0),
                 토큰: {
