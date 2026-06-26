@@ -17,6 +17,7 @@ export type Database = {
       ai_usage_log: {
         Row: {
           error: string | null
+          fallback_reason: string | null
           id: string
           latency_ms: number | null
           model: string
@@ -31,6 +32,7 @@ export type Database = {
         }
         Insert: {
           error?: string | null
+          fallback_reason?: string | null
           id?: string
           latency_ms?: number | null
           model: string
@@ -45,6 +47,7 @@ export type Database = {
         }
         Update: {
           error?: string | null
+          fallback_reason?: string | null
           id?: string
           latency_ms?: number | null
           model?: string

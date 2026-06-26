@@ -46,6 +46,8 @@ const state = {
   verifyUsd: 0,          // 세션 누적 품질 검수 비용(USD) — 검수 호출 _usd 누적, 저장 시 단건 비용에 합산(검수 모델 단가 서버 환산본)
   reviewNote: null,      // 방금 외부 검토자(🔎)가 준 의견 — 이걸 본 교사가 다음에 발화하면 그 발화와 함께 1회 본 대화 맥락에 주입(독립 검토라 메인 LLM은 모르므로)
   confirmedChoices: new Set(),   // 사용자가 확정한 CHOICE_PLAN_KEY(normField)들 — LLM이 이미 끝낸 항목 카드를 다시 띄우면(같은 단계 반복·이전 단계로 되돌아감) 가드로 차단
+  regenCount: {},                 // field(normField) → "다시 제안" 누른 횟수 (run 단위, 최대 3)
+  completeBlocked: false,         // complete_plan 2회 ok:false 후 잠금 (이 run에서 자동 재호출 차단)
   interactionId: null,           // [USE_INTER] previous_interaction_id — 서버가 대화 보관, 클라는 이 ID만 이어 전달
   interInput: null,              // [USE_INTER] 다음 callLLMInter에 보낼 input(첫 턴=user 문자열, 이후=function_result 배열)
   runId: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : ("r" + Date.now() + "-" + Math.random().toString(36).slice(2, 10)),
@@ -910,19 +912,32 @@ function showChoiceCard(c) {
     onChoiceSubmit(c.field, picks, pickedNone, customText);
   });
 
-  // 다른 후보 추천받기 — 같은 항목으로 새 후보를 다시 요청
+  // 다른 후보 추천받기 — 같은 항목으로 새 후보를 다시 요청 (run 단위 3회 상한)
   if (regenBtn) {
-    regenBtn.addEventListener("click", () => {
-      if (!state.pendingCall) return;
-      inputs.forEach((x) => x.disabled = true);
-      textarea.disabled = true;
-      submitBtn.disabled = true;
+    const REGEN_MAX = 3;
+    const fldNorm = normField(c.field);
+    const used = (state.regenCount[fldNorm] || 0);
+    if (used > 0) {
+      regenBtn.textContent = `🔄 다른 후보 추천받기 (${used}/${REGEN_MAX})`;
+    }
+    if (used >= REGEN_MAX) {
       regenBtn.disabled = true;
-      regenBtn.textContent = "🔄 다시 추천 중…";
-      state.confirmedChoices.delete(normField(c.field));   // 사용자가 이 항목의 다른 후보를 요청 → 그 항목만 가드 해제
-      addUser(`다른 ${c.field} 후보를 추천해 주세요`);
-      answerPendingCall({ field: c.field, regenerate: true });
-    });
+      regenBtn.title = "비용 절약을 위해 이번 항목은 직접 입력해 주세요.";
+      regenBtn.textContent = `🔄 추천 한도 도달 (${REGEN_MAX}/${REGEN_MAX})`;
+    } else {
+      regenBtn.addEventListener("click", () => {
+        if (!state.pendingCall) return;
+        state.regenCount[fldNorm] = (state.regenCount[fldNorm] || 0) + 1;
+        inputs.forEach((x) => x.disabled = true);
+        textarea.disabled = true;
+        submitBtn.disabled = true;
+        regenBtn.disabled = true;
+        regenBtn.textContent = `🔄 다시 추천 중… (${state.regenCount[fldNorm]}/${REGEN_MAX})`;
+        state.confirmedChoices.delete(fldNorm);   // 사용자가 이 항목의 다른 후보를 요청 → 그 항목만 가드 해제
+        addUser(`다른 ${c.field} 후보를 추천해 주세요`);
+        answerPendingCall({ field: c.field, regenerate: true });
+      });
+    }
   }
 }
 
@@ -1408,11 +1423,12 @@ async function runConversation() {
       for (const tr of toolResults) {
         state.messages.push({ role: "tool", tool_call_id: tr.id, name: tr.name, content: tr.content });
       }
-      // 가드: complete_plan이 검토를 거듭(누적 3회) 통과 못 하면(예: 특정 필드가 계속 비거나 오염)
-      // 무한 재시도를 멈추고 사용자가 직접 수정하도록 안내한다.
-      if ((state.completeFails || 0) >= 3) {
+      // 가드: complete_plan이 연속 2회 ok:false면 자동 재호출을 멈추고 사용자에게 위임.
+      // state.completeBlocked=true 로 잠궈 이 run에서 더 이상 자동 complete_plan 시도를 막는다.
+      if ((state.completeFails || 0) >= 2) {
         if (loader) { removeLoader(loader); loader = null; }
-        addBot("자동 검토를 여러 번 통과하지 못했어요. 오른쪽 미리보기에서 비어 있거나 어색한 칸을 직접 확인·수정하신 뒤 ⬇ HWPX 다운로드를 눌러 주세요.");
+        state.completeBlocked = true;
+        addBot("자동 검토를 2회 통과하지 못했어요. 오른쪽 미리보기에서 비어 있거나 어색한 칸(특히 '수업자 의도')을 직접 확인·수정하신 뒤 ⬇ HWPX 다운로드를 눌러 주세요. 추가 자동 재시도는 비용 절약을 위해 멈췄습니다.");
         state.completeFails = 0;
         exhausted = false;
         break;
@@ -1562,9 +1578,10 @@ async function runConversationInter() {
         results.push({ type: "function_result", name: fc.name, call_id: fc.callId, result: [{ type: "text", text: JSON.stringify(res) }] });
       }
 
-      if ((state.completeFails || 0) >= 3) {
+      if ((state.completeFails || 0) >= 2) {
         if (loader) { removeLoader(loader); loader = null; }
-        addBot("자동 검토를 여러 번 통과하지 못했어요. 오른쪽 미리보기에서 비어 있거나 어색한 칸을 직접 확인·수정하신 뒤 ⬇ HWPX 다운로드를 눌러 주세요.");
+        state.completeBlocked = true;
+        addBot("자동 검토를 2회 통과하지 못했어요. 오른쪽 미리보기에서 비어 있거나 어색한 칸(특히 '수업자 의도')을 직접 확인·수정하신 뒤 ⬇ HWPX 다운로드를 눌러 주세요. 추가 자동 재시도는 비용 절약을 위해 멈췄습니다.");
         state.completeFails = 0; exhausted = false; break;
       }
 
@@ -1893,6 +1910,10 @@ async function verifyPlanQuality() {
 
 /* ── 완료 처리: 완료는 '검토 통과'여야 한다 — 빈 셀 게이트 + 독립 LLM 무의미값 검수를 모두 통과해야 plan 확정 ── */
 async function doCompletePlan() {
+  // 락: 이전 자동 검토 2회 실패로 사용자에게 위임된 run은 더 이상 자동 검수/완료를 진행하지 않는다.
+  if (state.completeBlocked) {
+    return { ok: false, error: "자동 검토가 잠겨 있습니다. 사용자가 미리보기에서 직접 수정 후 다운로드하도록 안내하고, complete_plan을 추가로 호출하지 마세요." };
+  }
   // 0) 데이터 모델 가드: 11단계 누락(수업자의도) 등 단계 점프 방지.
   //    DOM 기반 computeMissing은 placeholder/잔존 텍스트로 우회될 수 있으므로
   //    핵심 필드는 state.partialPlan 값을 직접 검사한다.
@@ -2506,6 +2527,8 @@ function showWelcome() {
   state.verifyUsd = 0;
   state.reviewNote = null;
   state.completeFails = 0;
+  state.completeBlocked = false;
+  state.regenCount = {};
   state.confirmedChoices = new Set();
   state.registered = false;   // 새 세션 — 검증 통과 시 다시 등록 가능
   state.interactionId = null;
