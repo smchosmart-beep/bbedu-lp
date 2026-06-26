@@ -59,7 +59,7 @@ export function pickTier(stage: number | null | undefined): Tier {
   if (PRIMARY_STAGES.has(stage)) return "PRIMARY";
   if (MID_STAGES.has(stage)) return "MID";
   if (LITE_STAGES.has(stage)) return "LITE";
-  return "PRIMARY"; // 알 수 없는 stage → 안전하게 PRIMARY
+  return "MID"; // 알 수 없는 stage → MID(preview)로 안전 폴백 (PRIMARY 비용 사고 방지)
 }
 
 // 한 단계만 격상 (LITE→MID, MID→PRIMARY, PRIMARY→PRIMARY)
