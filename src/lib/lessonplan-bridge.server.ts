@@ -22,19 +22,21 @@ export function resolveModelId(raw?: string | null): string {
 
 // === 비용 최적화: 3-Tier 라우팅 ===
 // PRIMARY (평가·전개활동)  : gemini-3.5-flash — 품질 민감 단계(6·9·10)만 사용
-// MID     (창의·정형)       : gemini-3-flash-preview — 3배 저렴, 폴백 안전망 있음
-// LITE    (RAG·선택)        : gemini-3-flash-preview — 후속 turn에서 flash-lite로 승격 예정
+// MID     (창의·정형)       : gemini-2.5-flash — GA 안정, preview 대비 ~20~40% 저렴 (stage 11만 preview 예외)
+// LITE    (RAG·선택)        : gemini-2.5-flash — 단순 선택, GA 안정
 export const PRIMARY_MODEL = "google/gemini-3.5-flash";
-export const MID_MODEL = "google/gemini-3-flash-preview";
-export const LITE_MODEL = "google/gemini-3-flash-preview";
+export const MID_MODEL = "google/gemini-2.5-flash";
+export const LITE_MODEL = "google/gemini-2.5-flash";
 export const CHEAP_MODEL = MID_MODEL; // 하위 호환
 export const VERIFY_A_MODEL = "google/gemini-2.5-flash-lite";
-export const VERIFY_B_MODEL = "google/gemini-3-flash-preview";
+export const VERIFY_B_MODEL = "google/gemini-2.5-flash";
+// stage 11(수업자의도) 전용 예외: reflection 서술 품질 위해 preview의 최신 reasoning 유지
+export const STAGE11_MODEL = "google/gemini-3-flash-preview";
 
 // 단계별 라우팅 매핑
 // PRIMARY: 6(평가 과제 제안/선정), 9·10(전개 활동 제안·본문) — 품질 민감, 3.5-flash 유지
 const PRIMARY_STAGES = new Set([6, 9, 10]);
-const MID_STAGES = new Set([5, 7, 11]); // 탐구질문, 학습목표, 수업자의도
+const MID_STAGES = new Set([5, 7, 11]); // 탐구질문, 학습목표, 수업자의도(stage 11은 모델 예외 적용)
 const LITE_STAGES = new Set([1, 2, 3, 4, 8]); // 기초정보·성취·핵심·역량·모형 (RAG 단순 선택)
 // 검수(99)·최종검토(100)는 client가 model을 명시해 보낼 때 그대로 사용 (chat.ts useExplicitModel).
 // 명시 안 한 경우만 아래 pickTier에서 MID로 매핑됨 — 검수 비용 최적화(2.5-flash-lite 1차)를 깨지 않기 위함.
@@ -50,7 +52,7 @@ const VERIFY_FORCE_PRIMARY = false;  // 검수(99) · 최종검토(100)
 
 export function pickTier(stage: number | null | undefined): Tier {
   if (FORCE_PRIMARY) return "PRIMARY";
-  if (!stage || !Number.isFinite(stage)) return "MID"; // SSoT 누락 → MID(preview)로 안전 폴백 (의도치 않은 PRIMARY 비용 사고 방지)
+  if (!stage || !Number.isFinite(stage)) return "MID"; // SSoT 누락 → MID로 안전 폴백 (의도치 않은 PRIMARY 비용 사고 방지)
   if (stage === 6 && STAGE6_FORCE_PRIMARY) return "PRIMARY";
   if (stage === 11 && STAGE11_FORCE_PRIMARY) return "PRIMARY";
   if ((stage === 99 || stage === 100) && VERIFY_FORCE_PRIMARY) return "PRIMARY";
@@ -59,7 +61,7 @@ export function pickTier(stage: number | null | undefined): Tier {
   if (PRIMARY_STAGES.has(stage)) return "PRIMARY";
   if (MID_STAGES.has(stage)) return "MID";
   if (LITE_STAGES.has(stage)) return "LITE";
-  return "MID"; // 알 수 없는 stage → MID(preview)로 안전 폴백 (PRIMARY 비용 사고 방지)
+  return "MID"; // 알 수 없는 stage → MID로 안전 폴백 (PRIMARY 비용 사고 방지)
 }
 
 // 한 단계만 격상 (LITE→MID, MID→PRIMARY, PRIMARY→PRIMARY)
@@ -69,9 +71,17 @@ export function escalateTier(tier: Tier): Tier {
   return "PRIMARY";
 }
 
-export function pickModelForTier(tier: Tier, requested?: string | null): string {
+export function pickModelForTier(
+  tier: Tier,
+  requested?: string | null,
+  stage?: number | null,
+): string {
   if (tier === "PRIMARY") return requested ? resolveModelId(requested) : PRIMARY_MODEL;
-  if (tier === "MID") return MID_MODEL;
+  if (tier === "MID") {
+    // stage 11(수업자의도)만 preview 예외
+    if (stage === 11) return STAGE11_MODEL;
+    return MID_MODEL;
+  }
   return LITE_MODEL;
 }
 
