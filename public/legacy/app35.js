@@ -2202,7 +2202,7 @@ async function runExternalReview() {
     messages: [{ role: "system", content: REVIEW_SYS }, { role: "user", content: "다음 교수·학습 과정안을 검토해 주세요(JSON):\n" + JSON.stringify(fields) }],
     json: true, maxTokens: 1500, stage: 100, runId: state.runId,
   };
-  const tryModels = ["gemini-3-flash-preview", "gemini-2.5-flash"];
+  const tryModels = ["gemini-3.5-flash", "gemini-3-flash-preview", "gemini-2.5-flash"];
   for (const model of tryModels) {
     try {
       const res = await fetch(API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...reqBody, model, variant: VARIANT }) });
