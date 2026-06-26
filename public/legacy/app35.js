@@ -324,7 +324,12 @@ function styleLabels(text) {
 
 function addBot(text) {
   // AI가 채팅 텍스트에 \n을 두 글자 그대로 출력할 경우 실제 줄바꿈으로 변환
-  const processed = styleLabels(text.replace(/\\n/g, '\n'));
+  let raw = String(text || "").replace(/\\n/g, '\n');
+  // 모델이 자기 도구 호출/결과를 자연어로 에코하는 경우 방어선:
+  // "[도구 결과: …]" 줄과 바로 뒤이은 JSON-only 줄을 제거. (드물게 [도구 호출: …]도 동일 처리)
+  raw = raw.replace(/^[ \t]*\[도구 (?:결과|호출)\s*:[^\n]*\n?(?:[ \t]*[\{\[][^\n]*[\}\]][ \t]*\n?)?/gm, '');
+  raw = raw.replace(/\n{3,}/g, '\n\n').trim();
+  const processed = styleLabels(raw);
   const bubble = addMsg(renderMarkdown(processed));
   renderMath(bubble);   // 수식은 봇 메시지에만 — user(escape됨)·loader(스피너)는 LaTeX 없음
   return bubble;
