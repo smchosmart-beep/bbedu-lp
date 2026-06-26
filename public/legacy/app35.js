@@ -1578,9 +1578,10 @@ async function runConversationInter() {
         results.push({ type: "function_result", name: fc.name, call_id: fc.callId, result: [{ type: "text", text: JSON.stringify(res) }] });
       }
 
-      if ((state.completeFails || 0) >= 3) {
+      if ((state.completeFails || 0) >= 2) {
         if (loader) { removeLoader(loader); loader = null; }
-        addBot("자동 검토를 여러 번 통과하지 못했어요. 오른쪽 미리보기에서 비어 있거나 어색한 칸을 직접 확인·수정하신 뒤 ⬇ HWPX 다운로드를 눌러 주세요.");
+        state.completeBlocked = true;
+        addBot("자동 검토를 2회 통과하지 못했어요. 오른쪽 미리보기에서 비어 있거나 어색한 칸(특히 '수업자 의도')을 직접 확인·수정하신 뒤 ⬇ HWPX 다운로드를 눌러 주세요. 추가 자동 재시도는 비용 절약을 위해 멈췄습니다.");
         state.completeFails = 0; exhausted = false; break;
       }
 
