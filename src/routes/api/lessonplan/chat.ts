@@ -35,8 +35,8 @@ async function logUsage(row: {
 }) {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const base: Record<string, unknown> = {
-      user_id: null,
+    const base = {
+      user_id: null as string | null,
       model: row.model,
       variant: row.variant,
       stage: row.stage,
@@ -47,10 +47,11 @@ async function logUsage(row: {
       run_id: row.run_id,
       error: row.error,
     };
-    const withReason = row.fallback_reason ? { ...base, fallback_reason: row.fallback_reason } : base;
-    const { error } = await supabaseAdmin.from("ai_usage_log").insert(withReason);
+    const payload = row.fallback_reason
+      ? { ...base, fallback_reason: row.fallback_reason }
+      : base;
+    const { error } = await supabaseAdmin.from("ai_usage_log").insert(payload);
     if (error) {
-      // 컬럼이 아직 추가되지 않은 환경에서 logging 전체가 죽지 않도록 1회만 폴백
       if (row.fallback_reason && /fallback_reason/.test(error.message)) {
         const { error: e2 } = await supabaseAdmin.from("ai_usage_log").insert(base);
         if (e2) console.error("[ai_usage_log insert failed retry]", e2.message);
