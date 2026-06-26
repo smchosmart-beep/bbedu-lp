@@ -42,7 +42,7 @@ const state = {
   callSeq: 0,          // tool_call id 생성용
   recentlyUpdated: new Set(),   // 직전 update_plan으로 바뀐 필드 키 — 미리보기 셀 강조용
   usage: { calls: 0, prompt: 0, output: 0, cached: 0 },   // 세션 누적 토큰(합계 — 호환용)
-  usageByModel: {},   // 모델별 누적 토큰: {"google/gemini-3-flash-preview":{prompt,output,calls}, ...} — 2-Tier 라우팅 정확 환산용
+  usageByModel: {},   // 모델별 누적 토큰: {"google/gemini-3.5-flash":{prompt,output,calls}, ...} — 2-Tier 라우팅 정확 환산용
   verifyUsd: 0,          // 세션 누적 품질 검수 비용(USD) — 검수 호출 _usd 누적, 저장 시 단건 비용에 합산(검수 모델 단가 서버 환산본)
   reviewNote: null,      // 방금 외부 검토자(🔎)가 준 의견 — 이걸 본 교사가 다음에 발화하면 그 발화와 함께 1회 본 대화 맥락에 주입(독립 검토라 메인 LLM은 모르므로)
   confirmedChoices: new Set(),   // 사용자가 확정한 CHOICE_PLAN_KEY(normField)들 — LLM이 이미 끝낸 항목 카드를 다시 띄우면(같은 단계 반복·이전 단계로 되돌아감) 가드로 차단
