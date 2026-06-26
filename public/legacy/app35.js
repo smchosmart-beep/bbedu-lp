@@ -6,7 +6,7 @@ const INTER_API_URL = "/api/lessonplan/inter";
 // 모델 성능 문제로 3.5-flash 고정 버전. 메인(2.5-flash, Interactions)과 코드를 분리해
 // 이 파일에서 가드·프롬프트를 자유롭게 단순화한다. 트래픽은 variant="v35"로 분리 집계(관리자 admin35).
 const VARIANT = "v35";
-const FORCE_MODEL = "gemini-3-flash-preview";
+const FORCE_MODEL = "gemini-3.5-flash";
 // 35 분기는 generateContent 경로(USE_INTER=false) — 프록시 /chat의 explicit 컨텍스트 캐시(시스템프롬프트+함수정의를 캐시 단가)와
 // buildAPIMessages의 오래된 RAG 결과 압축으로 입력 토큰·비용을 줄인다. Interactions로 되돌리려면 true로만 바꾸면 됨.
 const USE_INTER = false;
