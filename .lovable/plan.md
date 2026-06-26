@@ -1,82 +1,104 @@
-# 지도안 완성 단계 오류 — 11단계(수업자 의도) 건너뛰기 + 도구 결과 텍스트 노출
 
-## 진단
+# 재시도 발생 빈도를 근본적으로 줄이는 대책 (리스크 보완판)
 
-스크린샷에서 두 가지 비정상이 함께 보입니다.
+## 배경
 
-### A. 11단계(수업자 의도) 작성 누락
-모델이 10단계 마지막 `update_plan(전개_sub2_시간=10)` 직후 **곧장 `complete_plan`을 호출**했고 `{"ok": true}`가 돌아와 완료 메시지를 띄웠습니다. 정상이라면:
-- 10단계 → 11단계로 넘어가 "수업자 의도"를 3~5문장 작성 (`update_plan("수업자의도", …)`)
-- 그 후 complete_plan 호출
+`src/routes/api/admin/$.ts` L243–249의 retry 버킷은 같은 `(run_id, stage)` 가 2회 이상 보이면 무조건 누적합니다. 그래서 **성격이 다른 3가지**가 한 통에 섞여 있고, 어떤 게 진짜 낭비인지 안 보입니다.
 
-원인 후보 (둘 다 보강 필요):
-1. **시스템 프롬프트의 10단계 종료부**가 "활동 반영 후 11단계로 진행합니다"로만 끝나, 모델(특히 다운그레이드된 3-flash-preview)이 "11단계는 작은 단계"로 보고 곧장 점프.
-2. **`doCompletePlan`의 빈 셀 가드**(`computeMissing`)는 미리보기 DOM의 `data-key` 셀이 비어 있는지로만 판단합니다(`app35.js` L2153–2167). state.partialPlan의 `수업자의도` 값이 실제로는 비어있어도, 셀 텍스트가 placeholder/잔존값으로 비어있지 않으면 게이트가 통과될 수 있습니다. REQUIRED_FIELDS(L14)는 정의돼 있지만 doCompletePlan에서는 **사용되지 않음** — 결과적으로 "데이터 모델 기준" 가드가 없습니다.
+| 분류 | 발생 위치 | 성격 |
+|---|---|---|
+| (A) 계획된 캐스케이드 | 검수(99)·최종검토(100): `2.5-flash-lite → 3-flash-preview` 2단계 (`app35.js` L1863~) | 의도된 2회 |
+| (B) 서버 tier 폴백 | `chat.ts` L225–256: JSON 파싱 실패 / silent tool-call / MALFORMED → MID→PRIMARY 즉시 재호출 | 모델 신뢰성 부족 |
+| (C) 클라 자기수정 루프 | `complete_plan {ok:false}`, "다시 제안" 버튼, `hasStageConflict` | 프롬프트/가드 오작동 |
 
-### B. 도구 호출/결과의 자연어 누설
-화면에 `[도구 결과: update_plan] {"fields": …}` / `[도구 결과: complete_plan] {"ok": true}` 가 그대로 보입니다. 코드 검색 결과 이런 텍스트를 **클라가 만드는 곳은 없음**(`rg` 결과). 즉 **모델 자신이 자기 도구 호출을 자연어로 에코**하고 있는 것. 3.5-flash → 3-flash-preview 다운그레이드 후 함수 호출 신뢰성이 떨어진 신호일 가능성이 큼.
+실제 절감 여지는 **(B)·(C)** 입니다. 아래는 1차 리뷰의 리스크 5종을 모두 반영한 보완판입니다.
 
 ---
 
-## 적용할 보강 (모두 작은 변경, 회귀 위험 낮음)
+## 1) 계측 먼저 — DB 마이그레이션을 선행
 
-### 1) `doCompletePlan` 가드 강화 — `public/legacy/app35.js` L1889 부근
-빈 셀 게이트 직전에 **데이터 모델 기준 가드**를 추가:
+`ai_usage_log` 테이블에 컬럼이 없는 채로 `fallback_reason` 을 INSERT 하면 **모든 로깅이 실패** → 어드민 비용이 0으로 표시되는 대형 회귀.
 
-```js
-// 1-pre) 핵심 텍스트 필드는 state.partialPlan 값으로 직접 검사 (DOM 우회 방지)
-const CORE_REQUIRED = ["학습목표","학습주제","수업자의도"];   // 11단계 누락 등 점프 방지
-const empty = CORE_REQUIRED.filter((k) => !String(state.partialPlan[k] || "").trim());
-if (empty.length) {
-  return { ok: false, error: `다음 항목이 비어 있어 완료할 수 없습니다: ${empty.join(", ")}. update_plan으로 채운 뒤 다시 complete_plan을 호출하세요. 특히 '수업자의도'는 11단계에서 3~5문장으로 직접 작성해야 합니다.` };
-}
-```
+순서를 강제합니다.
 
-→ 11단계를 건너뛰면 ok:false를 받고 모델이 11단계로 복귀하는 자기수정 루프가 작동(시스템 프롬프트 11단계 마지막 줄에 이미 "ok:false면 고쳐 다시 호출" 규칙 있음).
+1. **마이그레이션**(승인 필요):
+   ```sql
+   ALTER TABLE public.ai_usage_log
+     ADD COLUMN IF NOT EXISTS fallback_reason text;
+   ```
+   기존 GRANT/RLS 유지(컬럼 추가만이라 정책 변경 불필요).
+2. **방어 코드**: `logUsageBounded` 에 try/catch 추가 — INSERT 실패 시 `fallback_reason` 키만 빼고 1회 재시도. 마이그레이션 누락 환경에서도 로깅이 죽지 않음.
+3. 그 다음에 `chat.ts` 에서 폴백 사유를 함께 기록.
 
-### 2) 10단계 프롬프트 마지막 줄 강화 — `app35.js` L158
-현재: `… 활동 반영 후 11단계로 진행합니다.`
-변경: `… 활동 반영 후 반드시 11단계로 진행합니다. 이 단계에서 complete_plan을 호출하지 마세요(검수는 11단계 끝에서 수행).`
+## 2) 어드민에 retry 가시화 (읽기 전용·안전)
 
-### 3) 11단계 프롬프트 보강 — L160
-현재 문구 유지 + 앞부분에 한 줄 추가:
-`주의: 10단계에서 곧장 complete_plan을 호출하면 안 됩니다. 반드시 본 단계에서 수업자 의도를 먼저 update_plan("수업자의도")로 저장한 뒤에만 complete_plan을 호출합니다.`
+`src/routes/api/admin/$.ts`:
 
-### 4) 도구 호출/결과 자연어 에코 금지 — 시스템 프롬프트 공통부(L66–L70 부근)에 한 줄 추가
-`- 도구 호출 자체 또는 도구 결과(JSON)는 사용자에게 텍스트로 다시 적지 마세요. "[도구 결과: …] {…}" 같은 줄을 답변에 넣지 마세요. 도구 호출의 의미(무엇을·왜)는 한국어 한 줄 요약으로만 전달하고, 함수 호출은 함수 호출로만 실행합니다.`
+- retry 버킷 분류에서 **검수(99·100) 제외**: `seen>=2 && !(stageNum===99 || stageNum===100)`. (검수 2콜은 의도된 캐스케이드)
+- `costBuckets` 옆에 신규 필드 `retryByStage: { "<stage>": { calls, krw, reasons: { "silent-toolcall": n, "malformed": n, ... } } }` 추가.
+- `admin35.js` 가 새 필드를 모르면 그냥 무시 → 호환.
+- **분기점 안내**: 이 변경이 적용된 시각을 어드민 헤더에 한 줄 표기("이 시점 이후 검수는 retry에서 제외"). 과거 수치와 직접 비교 시 혼동 방지.
 
-### 5) 클라 안전망 — `[도구 결과: …]` 줄 표시 차단 (방어선)
-어시스턴트 메시지를 렌더하는 자리(메시지 표시 함수)에서, 정규식 `/^\s*\[도구 결과:.*$/gm` 매칭 줄과 그 다음 JSON-only 줄(`/^\s*[\{\[].*[\}\]]\s*$/`)을 제거 후 표시. 모델이 또 새는 경우의 폴백.
+## 3) 서버 폴백(B) 트리거를 보수적으로 줄이기
 
-→ 메시지 렌더 함수 위치는 적용 단계에서 `renderMessage`/메시지 추가 지점을 1곳 찾아 1줄 sanitize 추가(아래 "변경 파일" 참조).
+`src/routes/api/lessonplan/chat.ts` L225–256:
 
----
+- **silent-toolcall 임계**: 40 → **24자**(12자는 너무 빡빡해 진짜 침묵 누수). 단 "첫 1턴 한정" 게이트는 **두지 않음**.
+- **silent 폴백은 "연속 2회"일 때만**: run 단위 카운터로, 같은 stage에서 toolCalls=0 && text<24 가 **2회 연속** 관측되면 그때 폴백. 1회 우연 침묵으로 인한 비용 폭증·진행 멈춤 모두 방지.
+- **JSON 코드펜스 재파싱**: `result.text` 가 ` ```json ... ``` ` 로 감싸져 있으면 펜스 제거 후 한 번 더 `JSON.parse` 시도, 그래도 실패면 폴백. (현재는 무조건 폴백)
+- **MALFORMED 폴백**: 유지(실제 에러).
+- 모든 폴백 발생 시 `fallback_reason` 을 다음 콜의 `logUsageBounded` 메타에 함께 전달.
 
-## 옵션 — 11단계만 PRIMARY로 복귀 (선택)
+## 4) MID→PRIMARY 승격은 데이터 본 뒤 결정 (즉시 적용 X)
 
-3-flash-preview의 함수 호출 누설/단계 점프가 잦으면, `src/lib/lessonplan-bridge.server.ts`에서 stage 11만 PRIMARY로 끌어올릴 수 있습니다:
-```ts
-const STAGE11_FORCE_PRIMARY = true; // 수업자의도+complete 신뢰성 확보
-```
-한 줄 토글로 즉시 원복 가능. 비용 영향은 미미(수업자의도는 짧음).
+1~3 적용 후 1~2일 운영 → `retryByStage` 에서 `fallback_reason != null` 비율이 **15% 이상**인 stage 만 `MID_STAGES` 에서 제거. 콜당 단가가 약 3배 오르므로 "절감 ≥ 단가 증가" 사전 추산 후 적용. 코드 변경은 `lessonplan-bridge.server.ts` 1줄.
 
-위 1~5번 적용 후에도 11단계 누락이 재발하면 6번을 켜는 것을 권장. **이번 계획에는 일단 1~5만 포함**하고, 사용자가 테스트 결과 보고 6을 결정.
+## 5) 클라 자기수정 루프(C) 차단 — UX 안전판 포함
+
+`public/legacy/app35.js`:
+
+- **`complete_plan {ok:false}` 가 같은 run에서 연속 2회** → 자동 재호출 정지 + "수업자 의도를 직접 작성해 주세요" 모달 표시 + **run 단위 락**(`state.completeBlocked=true`)으로 추가 메시지가 와도 자동 complete 시도 안 함. 사용자가 모달에서 의도 작성하면 락 해제.
+- **"다시 제안" 버튼**: 카운터 표시(예: "다시 제안 (2/3)"), 3회 초과 시 비활성화 + 툴팁 "비용 절약을 위해 이번 항목은 직접 수정해 주세요". **새 차시 시작 시 카운터 리셋**.
+- **격상 잠금** (`hasStageConflict`): "격상 시도 1회"가 아니라 **"격상 후 후속 콜이 정상 응답 1회"** 일 때만 잠금. 격상 직후 또 실패하면 한 번 더 허용 → 모델이 잘못된 stage에 영구히 머무는 사고 방지.
+
+## 적용 순서 (회귀 최소화)
+
+1. 마이그레이션(`fallback_reason` 컬럼) → 승인 후 적용.
+2. `logUsageBounded` 방어 try/catch.
+3. `chat.ts` 폴백 임계·연속2회·코드펜스·메타 기록.
+4. `admin/$.ts` retry 버킷 재정의 + `retryByStage`.
+5. `app35.js` 클라 안전판(complete 락, 다시 제안 상한, 격상 잠금).
+6. (관찰 후) `MID_STAGES` 조정.
+
+각 단계는 독립 배포 가능. 1·2가 먼저 들어가야 3 이후가 안전.
 
 ---
 
 ## 변경 파일
 
-- `public/legacy/app35.js`
-  - L158·L160: 10·11단계 프롬프트 문구 보강 (점프 금지·complete_plan 호출 조건 명시)
-  - L66~70 부근: 공통 규칙에 "도구 호출/결과 텍스트 에코 금지" 한 줄 추가
-  - L1889 부근(doCompletePlan): `CORE_REQUIRED` 데이터 모델 가드 추가
-  - 메시지 렌더 지점 1곳: `[도구 결과: …]` 줄 sanitize (정규식 1줄)
+- 마이그레이션: `ai_usage_log` 컬럼 1개 추가
+- `src/lib/chat.functions.ts` 또는 `chat.ts` 내 `logUsageBounded`: 방어 catch + 신규 필드
+- `src/routes/api/lessonplan/chat.ts`: 폴백 휴리스틱·연속2회·코드펜스
+- `src/routes/api/admin/$.ts`: retry 버킷 제외 조건 + `retryByStage`
+- `public/legacy/app35.js`: complete 락, 다시 제안 상한, 격상 잠금 (UI 카운터·툴팁 포함)
+- `src/lib/lessonplan-bridge.server.ts`: (후속) `MID_STAGES` 조정
 - `.lovable/plan.md`
 
-## 검증 절차
+## 검증
 
-1. 새 차시를 빌드해서 10단계까지 완료 → "진행해줘" 입력.
-2. 모델이 곧장 complete_plan을 시도하면 빈셀 가드(`수업자의도`)가 ok:false를 돌려보내고, 다음 턴에 11단계로 복귀해 수업자의도 update_plan → complete_plan 순서가 보이는지 확인.
-3. 채팅에 `[도구 결과: …]` 줄이 더 이상 노출되지 않는지 확인.
-4. 어드민에서 같은 run의 비용 분해 툴팁 확인 — retry 콜이 비정상으로 증가하지 않았는지.
-5. 재발 시 옵션 6(STAGE11_FORCE_PRIMARY=true) 적용 후 재테스트.
+1. 마이그레이션 후 신규 차시 1건 → 어드민 비용·토큰이 정상 표시되는지(0원 회귀 아님 확인).
+2. `retryByStage` 에 stage별 사유가 보이고, 검수가 retry로 안 잡히는지.
+3. 짧은 정상 응답(13~23자)에서 silent 폴백이 1회로 끝나는지(연속 2회 룰).
+4. 사용자가 "다시 제안" 4번째 누르면 비활성화되는지, 새 차시에서 리셋되는지.
+5. `complete_plan` 연속 2회 ok:false 시 모달 + 락이 작동하는지.
+6. 2~3 차시 운영 후 `retryByStage` 의 `fallback_reason` 분포 보고 6번(MID→PRIMARY) 적용 여부 결정.
+
+## 비용 기대 효과
+
+- (B) 폴백: 코드펜스 재파싱 + 연속2회 룰로 본문 stage 같은 단계 중복호출 **50~70% 감소** 예상.
+- (C) 자기수정 루프: 한 차시 같은 stage 5+회 호출되는 최악 케이스 제거.
+- 검수 retry 분리 표시로 "진짜 낭비"가 보여, 다음 라운드 최적화 의사결정이 정확해짐.
+
+## 안 하는 것
+
+- 전체 PRIMARY 복귀(비용 3배), 검수 1단계 단축(누락 위험), silent-toolcall 임계 12자(누수 위험) — 모두 채택하지 않음.
