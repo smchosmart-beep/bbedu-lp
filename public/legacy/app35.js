@@ -1894,6 +1894,10 @@ async function verifyPlanQuality() {
 
 /* ── 완료 처리: 완료는 '검토 통과'여야 한다 — 빈 셀 게이트 + 독립 LLM 무의미값 검수를 모두 통과해야 plan 확정 ── */
 async function doCompletePlan() {
+  // 락: 이전 자동 검토 2회 실패로 사용자에게 위임된 run은 더 이상 자동 검수/완료를 진행하지 않는다.
+  if (state.completeBlocked) {
+    return { ok: false, error: "자동 검토가 잠겨 있습니다. 사용자가 미리보기에서 직접 수정 후 다운로드하도록 안내하고, complete_plan을 추가로 호출하지 마세요." };
+  }
   // 0) 데이터 모델 가드: 11단계 누락(수업자의도) 등 단계 점프 방지.
   //    DOM 기반 computeMissing은 placeholder/잔존 텍스트로 우회될 수 있으므로
   //    핵심 필드는 state.partialPlan 값을 직접 검사한다.
