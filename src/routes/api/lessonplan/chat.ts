@@ -220,7 +220,7 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
 
         // 모델 결정: 위에서 PRIMARY 로 떨어진 명시 JSON 호출은 client model 그대로
         const useExplicitModel = json && !!model && forceTier === undefined;
-        const resolvedModel = useExplicitModel ? resolveModelId(model!) : pickModelForTier(tier, model);
+        const resolvedModel = useExplicitModel ? resolveModelId(model!) : pickModelForTier(tier, model, typeof stage === "number" ? stage : null);
 
         const tcfg = tierConfig(tier);
         const openaiTools = geminiToolsToOpenAI(tools);
@@ -276,7 +276,7 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
             triedFallback = true;
             fallbackReason = reason;
             tierInUse = escalateTier(tierInUse);
-            modelInUse = pickModelForTier(tierInUse, model);
+            modelInUse = pickModelForTier(tierInUse, model, typeof stage === "number" ? stage : null);
             tcfgInUse = tierConfig(tierInUse);
           };
           // eslint-disable-next-line no-constant-condition
