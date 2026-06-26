@@ -158,7 +158,7 @@ const STAGE_GUIDES = {
 
   9: `전개 활동 구성: 8단계에서 고른 모형의 단계를 전개 활동의 뼈대로 삼습니다. 단계가 있으면 그 흐름에 대응해 구성하고, 없으면 학습목표에 맞게 자유 구성합니다. 활동 흐름(세트)을 2~3개 제안하되, 한 옵션 = 한 세트(활동 2~3개 묶음)로 present_choices(multi=false, allow_regenerate=true)에 담고, 각 옵션은 "① 활동명1 → ② 활동명2 → ③ 활동명3" 형태로 적습니다. 고른 세트의 활동들로 10단계 전개_sub를 구성합니다.`,
 
-  10: `교수·학습 활동: 고른 세트로 도입·전개·정리를 작성해 반영합니다. update_plan은 단계별로 나눠 작게 호출하세요(한 호출에 모든 단계를 몰아넣으면 함수 인자 생성이 깨집니다 — MALFORMED_FUNCTION_CALL): ①도입(도입_* + "전개_num_subs"), ②전개 활동을 하나씩(전개_sub1_* → 전개_sub2_* …, 각 호출에 그 활동의 필드만), ③정리(정리_*). 각 update_plan의 fields 배열에는 한 단계(또는 한 전개 활동)의 필드만 담아 작게 유지합니다(각 value는 여러 줄·기호를 그대로 적고 JSON으로 다시 감싸지 않습니다). 각 단계·활동마다 학습형태·교사활동(◉◦-)·학생활동·시간(분)·자료유의평가를 모두 채우고, 도입·전개·정리 세 단계의 교사활동·학생활동을 쌍으로 채웁니다(정리 단계 포함). 전개에 활동이 여러 개면 "전개_num_subs"와 활동마다 "전개_sub{i}_교사활동/학생활동/시간/자료유의평가"를 넣습니다. 8단계 모형의 단계명을 각 활동의 '단계' 키에 대응시킵니다(다중="전개_sub{i}_단계", 단일·도입·정리="전개_단계"/"도입_단계"/"정리_단계"; 단계명은 모형 단계만 짧게, 활동명과 분리; 단계 없는 모형·미선택이면 비움). 시간 합은 약 40분(도입 5 / 전개 25~30 / 정리 5). 활동 반영 후 반드시 11단계로 진행합니다. ★ 이 단계에서는 절대 complete_plan을 호출하지 마세요 — 검수는 11단계 끝에서 수행합니다.`,
+  10: `교수·학습 활동: 고른 세트로 도입·전개·정리를 작성해 반영합니다. update_plan은 단계별로 나눠 작게 호출하세요(한 호출에 모든 단계를 몰아넣으면 함수 인자 생성이 깨집니다 — MALFORMED_FUNCTION_CALL): ①도입(도입_* + "전개_num_subs"), ②전개 활동을 하나씩(전개_sub1_* → 전개_sub2_* …, 각 호출에 그 활동의 필드만), ③정리(정리_*). 각 update_plan의 fields 배열에는 한 단계(또는 한 전개 활동)의 필드만 담아 작게 유지합니다(각 value는 여러 줄·기호를 그대로 적고 JSON으로 다시 감싸지 않습니다). 각 단계·활동마다 학습형태·교사활동(◉◦-)·학생활동·시간(분)·자료유의평가를 모두 채우고, 도입·전개·정리 세 단계의 교사활동·학생활동을 쌍으로 채웁니다(정리 단계 포함). 전개에 활동이 여러 개면 "전개_num_subs"와 활동마다 "전개_sub{i}_교사활동/학생활동/시간/자료유의평가"를 넣습니다. 8단계 모형의 단계명을 각 활동의 '단계' 키에 대응시킵니다(다중="전개_sub{i}_단계", 단일·도입·정리="전개_단계"/"도입_단계"/"정리_단계"; 단계명은 모형 단계만 짧게, 활동명과 분리; 단계 없는 모형·미선택이면 비움). ★시간 합은 정확히 40분(±0): 도입 5 / 전개 25~30 / 정리 5. update_plan 결과에 warn이 오거나 합이 40이 아니면 가장 긴 전개_sub{i}_시간만 보정해서 즉시 update_plan을 다시 호출하세요. 채팅 본문에 "fields: [...]"나 {"fields":...} 같은 JSON을 절대 적지 마세요(도구 호출만으로 표현). 활동 반영 후 반드시 11단계로 진행합니다. ★ 이 단계에서는 절대 complete_plan을 호출하지 마세요 — 검수는 11단계 끝에서 수행합니다.`,
 
   11: `수업자 의도 → 검토 → 완료: ★ 10단계에서 곧장 complete_plan을 호출하면 안 됩니다. 반드시 본 단계에서 "수업자의도"를 먼저 update_plan으로 저장한 뒤에만 complete_plan을 호출합니다. 완성된 설계를 바탕으로 수업자 의도(왜 이렇게 설계했는지, 주안점)를 3~5문장으로 update_plan("수업자의도"). 그다음 "이제 전체 과정안을 검토하겠습니다."라고 한 줄 안내하고 complete_plan을 호출합니다(검토는 complete_plan이 수행하므로 따로 점검 보고하지 않습니다). complete_plan이 ok:true면 완료를 알리고, ok:false면 지적 사항을 사용자에게 간단히 전한 뒤 update_plan으로 고쳐 다시 complete_plan을 호출합니다(ok:true를 받기 전에는 "완료됐습니다"라고 하지 않습니다).`,
 };
@@ -330,6 +330,11 @@ function addBot(text) {
   // 모델이 자기 도구 호출/결과를 자연어로 에코하는 경우 방어선:
   // "[도구 결과: …]" 줄과 바로 뒤이은 JSON-only 줄을 제거. (드물게 [도구 호출: …]도 동일 처리)
   raw = raw.replace(/^[ \t]*\[도구 (?:결과|호출)\s*:[^\n]*\n?(?:[ \t]*[\{\[][^\n]*[\}\]][ \t]*\n?)?/gm, '');
+  // update_plan 인자/도구 결과를 본문에 그대로 적어버리는 누출 줄 제거 (히스토리는 원문 유지)
+  raw = raw.replace(/^[ \t]*fields\s*:\s*[\[\{].*$/gm, '');
+  raw = raw.replace(/^[ \t]*\{?\s*"fields"\s*:[\s\S]*?\]\s*\}?\s*$/gm, '');
+  raw = raw.replace(/^[ \t]*\[?\s*\{\s*"key"\s*:[\s\S]*?\}\s*\]?\s*$/gm, '');
+  raw = raw.replace(/^[ \t]*\{?\s*"ok"\s*:\s*(?:true|false)[\s\S]*?\}\s*$/gm, '');
   raw = raw.replace(/\n{3,}/g, '\n\n').trim();
   const processed = styleLabels(raw);
   const bubble = addMsg(renderMarkdown(processed));
@@ -1850,6 +1855,21 @@ function doUpdatePlan(args) {
   // 무시된 환각 키는 updated에서 빼고 알린다 — 모델이 'a__역량 저장 성공'으로 오해해 같은 단계를 반복하지 않게.
   const result = { ok: true, updated: reflected };
   if (ignored.length) result.note = `다음 키는 형식이 잘못되어(정상 필드명은 한글로 시작) 무시되었습니다: ${ignored.join(", ")}. 해당 값이 정상 필드(예: 교과역량)에 이미 반영돼 있으면 다시 보내지 말고 다음 단계로 진행하세요.`;
+  // 시간 키를 건드린 경우 합 점검(소프트 경고) — 차단하지 않고 모델에 즉시 피드백
+  if (reflected.some((k) => /_시간$/.test(k))) {
+    const tnum = (k) => { const n = parseInt(String(state.partialPlan[k] || "").replace(/[^0-9]/g, ""), 10); return n > 0 ? n : 0; };
+    let sum = tnum("도입_시간") + tnum("정리_시간");
+    const nSub = parseInt(state.partialPlan.전개_num_subs) || 0;
+    if (nSub >= 2) { for (let i = 1; i <= nSub; i++) sum += tnum(`전개_sub${i}_시간`); }
+    else sum += tnum("전개_시간");
+    if (sum > 0 && sum !== 40) {
+      const delta = sum - 40;
+      const target = nSub >= 2 ? `전개_sub${nSub}_시간` : "전개_시간";
+      result.warn = delta > 0
+        ? `시간 합 ${sum}분(40 초과 ${delta}분). 가장 긴 전개 활동(${target}) 시간을 ${delta}분 줄여 다시 update_plan하세요. 채팅 본문에 fields JSON을 적지 말고 도구 호출만 사용.`
+        : `시간 합 ${sum}분(40 미만 ${-delta}분). 가장 긴 전개 활동(${target}) 시간을 ${-delta}분 늘려 다시 update_plan하세요.`;
+    }
+  }
   return result;
 }
 
@@ -1933,8 +1953,13 @@ async function doCompletePlan() {
   const nSub = parseInt(state.partialPlan.전개_num_subs) || 0;
   if (nSub >= 2) { for (let i = 1; i <= nSub; i++) timeSum += tnum(`전개_sub${i}_시간`); }
   else timeSum += tnum("전개_시간");
-  if (timeSum > 0 && (timeSum < 38 || timeSum > 42)) {
-    return { ok: false, error: `도입·전개·정리 시간 합이 ${timeSum}분입니다. 도입 5분 / 전개 25~30분 / 정리 5분으로 합이 40분이 되도록 시간을 조정해 update_plan한 뒤 다시 complete_plan을 호출하세요.` };
+  if (timeSum > 0 && timeSum !== 40) {
+    const delta = timeSum - 40;
+    const target = nSub >= 2 ? `전개_sub${nSub}_시간` : "전개_시간";
+    const hint = delta > 0
+      ? `${delta}분 초과 — 가장 긴 전개 활동(예: ${target}) 시간을 ${delta}분 줄여 update_plan으로 다시 보내세요.`
+      : `${-delta}분 부족 — 가장 긴 전개 활동(예: ${target}) 시간을 ${-delta}분 늘려 update_plan으로 다시 보내세요.`;
+    return { ok: false, error: `도입·전개·정리 시간 합이 ${timeSum}분입니다(정확히 40분이어야 함). ${hint} 보정 후 다시 complete_plan을 호출하세요.` };
   }
   // 2) 독립 LLM 품질 검수(A=lite → B=preview, 폴백 3.5-flash). 무의미·placeholder 값이 있으면 완료 거부.
   const v = await verifyPlanQuality();
