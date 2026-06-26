@@ -336,6 +336,9 @@ function addBot(text) {
   raw = raw.replace(/^[ \t]*\{?\s*"fields"\s*:[\s\S]*?\]\s*\}?\s*$/gm, '');
   raw = raw.replace(/^[ \t]*\[?\s*\{\s*"key"\s*:[\s\S]*?\}\s*\]?\s*$/gm, '');
   raw = raw.replace(/^[ \t]*\{?\s*"ok"\s*:\s*(?:true|false)[\s\S]*?\}\s*$/gm, '');
+  // 함수 호출형/레이블형 누출(예: "태그: present_choices(...)", "update_plan(...)") — 한 줄 한정·도구명 화이트리스트
+  raw = raw.replace(/^[ \t]*(?:태그|호출|도구\s*호출)\s*:\s*(?:present_choices|update_plan|complete_plan|regenerate_choices)\b[^\n]*$/gm, '');
+  raw = raw.replace(/^[ \t]*(?:present_choices|update_plan|complete_plan|regenerate_choices)\s*\([^\n]*\)\s*$/gm, '');
   raw = raw.replace(/\n{3,}/g, '\n\n').trim();
   const processed = styleLabels(raw);
   const bubble = addMsg(renderMarkdown(processed));
