@@ -259,16 +259,22 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
 
           // === 실행 + 폴백 ===
           // 폴백 조건 (한 단계 격상, 최대 1회):
-          //   (1) JSON 모드인데 파싱 실패
-          //   (2) tools 제공됐는데 functionCalls=0 이고 content가 너무 짧음(<40자) — 침묵 실패
+          //   (1) JSON 모드인데 코드펜스 제거 후에도 파싱 실패
+          //   (2) tools 제공됐는데 functionCalls=0 이고 content가 너무 짧음(<24자)
+          //       — 단, run+stage 단위로 **연속 2회** 침묵일 때만 폴백(1회 우연 침묵으로 비용 폭증 방지)
           //   (3) MALFORMED_FUNCTION_CALL 류 에러
+          // 격상 성공 시 _fbState.conflictEscalated=true 로 잠궈 다음 호출부터 한 단계 위로 시작
+          const fbKey = _fbKey(runIdStr, stageStr);
+          const fbState = fbKey ? getFbState(fbKey) : null;
           let tierInUse = tier;
           let modelInUse = resolvedModel;
           let tcfgInUse = tcfg;
           let result;
           let triedFallback = false;
-          const escalate = () => {
+          let fallbackReason: string | null = null;
+          const escalate = (reason: string) => {
             triedFallback = true;
+            fallbackReason = reason;
             tierInUse = escalateTier(tierInUse);
             modelInUse = pickModelForTier(tierInUse, model);
             tcfgInUse = tierConfig(tierInUse);
@@ -291,24 +297,36 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
                   : {}),
               });
               if (!triedFallback && tierInUse !== "PRIMARY") {
-                // (1) JSON 파싱 실패
+                // (1) JSON 파싱 실패 — 코드펜스 제거 후 재시도
                 if (json) {
-                  try {
-                    JSON.parse(result.text || "");
-                  } catch {
+                  const parsedLoose = tryParseJsonLoose(result.text || "");
+                  if (parsedLoose === undefined) {
                     console.warn(`[tier-fallback] reason=json-parse from=${tierInUse} stage=${stageStr}`);
-                    escalate();
+                    escalate("json-parse");
                     continue;
                   }
                 }
-                // (2) tool-call 침묵 실패
+                // (2) tool-call 침묵 실패 — 연속 2회일 때만 폴백
                 if (aiTools) {
                   const tc = (result as unknown as { toolCalls?: unknown[] }).toolCalls ?? [];
                   const textLen = (result.text || "").trim().length;
-                  if (tc.length === 0 && textLen < 40) {
-                    console.warn(`[tier-fallback] reason=silent-toolcall from=${tierInUse} stage=${stageStr} textLen=${textLen}`);
-                    escalate();
-                    continue;
+                  if (tc.length === 0 && textLen < 24) {
+                    if (fbState) {
+                      fbState.silentStreak = (fbState.silentStreak || 0) + 1;
+                      fbState.ts = Date.now();
+                    }
+                    const streak = fbState?.silentStreak ?? 1;
+                    if (streak >= 2) {
+                      console.warn(`[tier-fallback] reason=silent-toolcall from=${tierInUse} stage=${stageStr} textLen=${textLen} streak=${streak}`);
+                      escalate("silent-toolcall");
+                      continue;
+                    } else {
+                      console.warn(`[tier-fallback-skip] reason=silent-toolcall-streak1 stage=${stageStr} textLen=${textLen}`);
+                    }
+                  } else if (fbState) {
+                    // 정상 응답 → 침묵 카운터 리셋
+                    fbState.silentStreak = 0;
+                    fbState.ts = Date.now();
                   }
                 }
               }
@@ -317,11 +335,16 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
               const msg = innerErr instanceof Error ? innerErr.message : String(innerErr);
               if (!triedFallback && tierInUse !== "PRIMARY" && isMalformedSignal(msg)) {
                 console.warn(`[tier-fallback] reason=malformed from=${tierInUse} stage=${stageStr}`);
-                escalate();
+                escalate("malformed");
                 continue;
               }
               throw innerErr;
             }
+          }
+          // 격상이 실제로 일어났고 후속 호출이 정상 응답 1회를 받은 시점에 잠금
+          if (triedFallback && fbState) {
+            fbState.conflictEscalated = true;
+            fbState.ts = Date.now();
           }
 
 
@@ -345,6 +368,7 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
             latency_ms: latency,
             cost_usd: costUsd,
             error: null,
+            fallback_reason: fallbackReason,
           });
 
           // Adapt AI SDK toolCalls -> legacy Gemini-style functionCalls
