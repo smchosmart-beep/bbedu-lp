@@ -384,9 +384,9 @@ const WORKFLOW_INTRO = `
       <li><b>HWPX 다운로드</b> — 완성 시 한글 문서(.hwpx) 생성(활동 수에 맞춰 템플릿 자동 선택)</li>
       <li><b>검증(🔎) 버튼</b> — 현재 과정안의 빈 칸·흐름·무의미 값을 점검해 안내</li>
       <li><b>세션 자동 저장·복원</b> — 새로고침해도 이어서 진행(localStorage)</li>
-      <li><b>3-Tier 라우팅 (/35)</b> — PRIMARY <code>gemini-3-flash-preview</code>(단계 9·10), MID <code>gemini-3-flash-preview</code>(단계 5·6·7·11·검수·최종검토), LITE <code>gemini-3-flash-preview</code> 8K(단계 1~4·8). 전 tier 동일 모델, tier별 토큰/온도만 분리. 단계 충돌·MALFORMED·JSON 파싱 실패 시 한 tier 자동 격상(최대 1회). <code>FORCE_PRIMARY=true</code> 또는 <code>STAGE6_/STAGE11_/VERIFY_FORCE_PRIMARY</code>로 즉시 롤백</li>
+      <li><b>3-Tier 라우팅 (/35)</b> — PRIMARY <code>gemini-3.5-flash</code>(단계 6 평가·9·10 전개활동), MID <code>gemini-3-flash-preview</code>(단계 5·7·11·검수·최종검토), LITE <code>gemini-3-flash-preview</code> 8K(단계 1~4·8). 알 수 없는 stage는 MID로 안전 폴백. 단계 충돌·MALFORMED·JSON 파싱 실패 시 한 tier 자동 격상(최대 1회). <code>FORCE_PRIMARY=true</code> 또는 <code>STAGE6_/STAGE11_/VERIFY_FORCE_PRIMARY</code>로 즉시 롤백</li>
       <li><b>동적 시스템 프롬프트</b> — CORE(상시) + STAGE_GUIDES(현재 stage ±1)만 주입해 입력 토큰 ~30~40% 절감. 회귀 시 <code>FORCE_FULL_PROMPT=true</code>로 전체 주입 복원</li>
-      <li><b>완료 검토(MID 단일 호출)</b> — 검수(99)·최종검토(100)는 <code>gemini-3-flash-preview</code>로 1회 호출, JSON 파싱 실패 시에만 PRIMARY로 1회 자동 폴백. 회귀 시 <code>VERIFY_FORCE_PRIMARY=true</code>로 즉시 PRIMARY 복원</li>
+      <li><b>완료 검토(MID 단일 호출)</b> — 검수(99)·최종검토(100)는 <code>gemini-3-flash-preview</code>로 1회 호출, JSON 파싱 실패 시에만 <code>gemini-3.5-flash</code>로 1회 자동 폴백. 회귀 시 <code>VERIFY_FORCE_PRIMARY=true</code>로 즉시 PRIMARY 복원</li>
       <li><b>variant 분리 집계</b> — <code>variant=v35</code>로 메인과 분리 집계</li>
       <li><b>시작 화면 자유 입력</b> — 주제뿐 아니라 수업 의도·아이디어·강조점을 적으면 설계 전반에 반영</li>
     </ul>
