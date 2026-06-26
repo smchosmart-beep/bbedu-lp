@@ -347,6 +347,34 @@ function addBot(text) {
 }
 function addUser(text) { return addMsg(escapeHTML(text), "user"); }
 
+/* 모델이 present_choices를 본문 텍스트로 적은 경우를 파싱.
+   성공 시 {field, intro, options[], multi, allow_custom, allow_none, allow_regenerate} 반환, 실패 시 null. */
+function parseLeakedPresentChoices(text) {
+  if (!text || typeof text !== "string") return null;
+  const m = text.match(/present_choices\s*\(([\s\S]*?)\)\s*$/m);
+  if (!m) return null;
+  const body = m[1];
+  const pick = (re) => { const x = body.match(re); return x ? x[1] : null; };
+  const pickBool = (re) => { const x = body.match(re); return x ? x[1] === "true" : undefined; };
+  const field = pick(/\bfield\s*=\s*"([^"]+)"/);
+  const intro = pick(/\bintro\s*=\s*"((?:[^"\\]|\\.)*)"/) || "";
+  const multi = pickBool(/\bmulti\s*=\s*(true|false)/);
+  const allow_custom = pickBool(/\ballow_custom\s*=\s*(true|false)/);
+  const allow_none = pickBool(/\ballow_none\s*=\s*(true|false)/);
+  const allow_regenerate = pickBool(/\ballow_regenerate\s*=\s*(true|false)/);
+  const optsBlock = body.match(/\boptions\s*=\s*\[([\s\S]*?)\]/);
+  if (!optsBlock) return null;
+  const options = [];
+  const re = /"((?:[^"\\]|\\.)*)"/g;
+  let mm;
+  while ((mm = re.exec(optsBlock[1])) !== null) {
+    options.push(mm[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\'));
+  }
+  if (!field || options.length === 0) return null;
+  return { field, intro, options, multi, allow_custom, allow_none, allow_regenerate };
+}
+
+
 function addLoader() {
   return addMsg(`<span class="spinner"></span> <span class="loader-text text-slate-500 text-sm">생각 중…</span>`);
 }
