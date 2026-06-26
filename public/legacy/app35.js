@@ -330,6 +330,11 @@ function addBot(text) {
   // 모델이 자기 도구 호출/결과를 자연어로 에코하는 경우 방어선:
   // "[도구 결과: …]" 줄과 바로 뒤이은 JSON-only 줄을 제거. (드물게 [도구 호출: …]도 동일 처리)
   raw = raw.replace(/^[ \t]*\[도구 (?:결과|호출)\s*:[^\n]*\n?(?:[ \t]*[\{\[][^\n]*[\}\]][ \t]*\n?)?/gm, '');
+  // update_plan 인자/도구 결과를 본문에 그대로 적어버리는 누출 줄 제거 (히스토리는 원문 유지)
+  raw = raw.replace(/^[ \t]*fields\s*:\s*[\[\{].*$/gm, '');
+  raw = raw.replace(/^[ \t]*\{?\s*"fields"\s*:[\s\S]*?\]\s*\}?\s*$/gm, '');
+  raw = raw.replace(/^[ \t]*\[?\s*\{\s*"key"\s*:[\s\S]*?\}\s*\]?\s*$/gm, '');
+  raw = raw.replace(/^[ \t]*\{?\s*"ok"\s*:\s*(?:true|false)[\s\S]*?\}\s*$/gm, '');
   raw = raw.replace(/\n{3,}/g, '\n\n').trim();
   const processed = styleLabels(raw);
   const bubble = addMsg(renderMarkdown(processed));
@@ -1850,6 +1855,21 @@ function doUpdatePlan(args) {
   // 무시된 환각 키는 updated에서 빼고 알린다 — 모델이 'a__역량 저장 성공'으로 오해해 같은 단계를 반복하지 않게.
   const result = { ok: true, updated: reflected };
   if (ignored.length) result.note = `다음 키는 형식이 잘못되어(정상 필드명은 한글로 시작) 무시되었습니다: ${ignored.join(", ")}. 해당 값이 정상 필드(예: 교과역량)에 이미 반영돼 있으면 다시 보내지 말고 다음 단계로 진행하세요.`;
+  // 시간 키를 건드린 경우 합 점검(소프트 경고) — 차단하지 않고 모델에 즉시 피드백
+  if (reflected.some((k) => /_시간$/.test(k))) {
+    const tnum = (k) => { const n = parseInt(String(state.partialPlan[k] || "").replace(/[^0-9]/g, ""), 10); return n > 0 ? n : 0; };
+    let sum = tnum("도입_시간") + tnum("정리_시간");
+    const nSub = parseInt(state.partialPlan.전개_num_subs) || 0;
+    if (nSub >= 2) { for (let i = 1; i <= nSub; i++) sum += tnum(`전개_sub${i}_시간`); }
+    else sum += tnum("전개_시간");
+    if (sum > 0 && sum !== 40) {
+      const delta = sum - 40;
+      const target = nSub >= 2 ? `전개_sub${nSub}_시간` : "전개_시간";
+      result.warn = delta > 0
+        ? `시간 합 ${sum}분(40 초과 ${delta}분). 가장 긴 전개 활동(${target}) 시간을 ${delta}분 줄여 다시 update_plan하세요. 채팅 본문에 fields JSON을 적지 말고 도구 호출만 사용.`
+        : `시간 합 ${sum}분(40 미만 ${-delta}분). 가장 긴 전개 활동(${target}) 시간을 ${-delta}분 늘려 다시 update_plan하세요.`;
+    }
+  }
   return result;
 }
 
@@ -1933,8 +1953,13 @@ async function doCompletePlan() {
   const nSub = parseInt(state.partialPlan.전개_num_subs) || 0;
   if (nSub >= 2) { for (let i = 1; i <= nSub; i++) timeSum += tnum(`전개_sub${i}_시간`); }
   else timeSum += tnum("전개_시간");
-  if (timeSum > 0 && (timeSum < 38 || timeSum > 42)) {
-    return { ok: false, error: `도입·전개·정리 시간 합이 ${timeSum}분입니다. 도입 5분 / 전개 25~30분 / 정리 5분으로 합이 40분이 되도록 시간을 조정해 update_plan한 뒤 다시 complete_plan을 호출하세요.` };
+  if (timeSum > 0 && timeSum !== 40) {
+    const delta = timeSum - 40;
+    const target = nSub >= 2 ? `전개_sub${nSub}_시간` : "전개_시간";
+    const hint = delta > 0
+      ? `${delta}분 초과 — 가장 긴 전개 활동(예: ${target}) 시간을 ${delta}분 줄여 update_plan으로 다시 보내세요.`
+      : `${-delta}분 부족 — 가장 긴 전개 활동(예: ${target}) 시간을 ${-delta}분 늘려 update_plan으로 다시 보내세요.`;
+    return { ok: false, error: `도입·전개·정리 시간 합이 ${timeSum}분입니다(정확히 40분이어야 함). ${hint} 보정 후 다시 complete_plan을 호출하세요.` };
   }
   // 2) 독립 LLM 품질 검수(A=lite → B=preview, 폴백 3.5-flash). 무의미·placeholder 값이 있으면 완료 거부.
   const v = await verifyPlanQuality();
