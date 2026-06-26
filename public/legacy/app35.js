@@ -1888,6 +1888,14 @@ async function verifyPlanQuality() {
 
 /* ── 완료 처리: 완료는 '검토 통과'여야 한다 — 빈 셀 게이트 + 독립 LLM 무의미값 검수를 모두 통과해야 plan 확정 ── */
 async function doCompletePlan() {
+  // 0) 데이터 모델 가드: 11단계 누락(수업자의도) 등 단계 점프 방지.
+  //    DOM 기반 computeMissing은 placeholder/잔존 텍스트로 우회될 수 있으므로
+  //    핵심 필드는 state.partialPlan 값을 직접 검사한다.
+  const CORE_REQUIRED = ["학습목표", "학습주제", "수업자의도"];
+  const coreEmpty = CORE_REQUIRED.filter((k) => !String(state.partialPlan[k] || "").trim());
+  if (coreEmpty.length) {
+    return { ok: false, error: `다음 항목이 비어 있어 완료할 수 없습니다: ${coreEmpty.join(", ")}. update_plan으로 채운 뒤 다시 complete_plan을 호출하세요. 특히 '수업자의도'는 11단계에서 3~5문장으로 직접 작성해야 합니다(이 단계를 건너뛰지 마세요).` };
+  }
   // 1) 빈 셀 게이트
   const missing = computeMissing();
   if (missing.length) {
