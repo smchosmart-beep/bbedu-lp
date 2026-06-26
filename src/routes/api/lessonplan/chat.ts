@@ -393,10 +393,11 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
 
           // JSON mode: client expects parsed JSON merged with _usd / _model
           if (json && functionCalls.length === 0) {
-            try {
-              const parsed = JSON.parse(result.text);
-              return Response.json({ ...parsed, _usd: costUsd, _model: modelInUse });
-            } catch {
+            const parsed = tryParseJsonLoose(result.text || "");
+            if (parsed !== undefined && parsed !== null && typeof parsed === "object") {
+              return Response.json({ ...(parsed as Record<string, unknown>), _usd: costUsd, _model: modelInUse });
+            }
+            {
               // 502 대신 200 + fallback 신호 — 프론트 흰화면 방지
               return Response.json({
                 error: "JSON 파싱 실패",
