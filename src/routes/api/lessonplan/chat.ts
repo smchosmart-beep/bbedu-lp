@@ -31,10 +31,11 @@ async function logUsage(row: {
   latency_ms: number;
   cost_usd: number;
   error: string | null;
+  fallback_reason?: string | null;
 }) {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.from("ai_usage_log").insert({
+    const base: Record<string, unknown> = {
       user_id: null,
       model: row.model,
       variant: row.variant,
@@ -45,8 +46,18 @@ async function logUsage(row: {
       latency_ms: row.latency_ms,
       run_id: row.run_id,
       error: row.error,
-    });
-    if (error) console.error("[ai_usage_log insert failed]", error.message);
+    };
+    const withReason = row.fallback_reason ? { ...base, fallback_reason: row.fallback_reason } : base;
+    const { error } = await supabaseAdmin.from("ai_usage_log").insert(withReason);
+    if (error) {
+      // 컬럼이 아직 추가되지 않은 환경에서 logging 전체가 죽지 않도록 1회만 폴백
+      if (row.fallback_reason && /fallback_reason/.test(error.message)) {
+        const { error: e2 } = await supabaseAdmin.from("ai_usage_log").insert(base);
+        if (e2) console.error("[ai_usage_log insert failed retry]", e2.message);
+      } else {
+        console.error("[ai_usage_log insert failed]", error.message);
+      }
+    }
   } catch (e) {
     console.error("[ai_usage_log insert threw]", e instanceof Error ? e.message : String(e));
   }
@@ -66,6 +77,54 @@ async function logUsageBounded(row: Parameters<typeof logUsage>[0]) {
     ),
   ]);
 }
+
+// === 재시도/격상 상태 (run+stage 단위, in-memory) ===
+// Cloudflare Workers 격리(isolate)에 살아있는 동안 best-effort. 누락돼도 기존 동작과 동일(폴백 즉시).
+type FallbackState = {
+  silentStreak: number;
+  conflictEscalated: boolean;
+  ts: number;
+};
+const _fbState = new Map<string, FallbackState>();
+const FB_TTL_MS = 15 * 60 * 1000;
+function _fbKey(runId: string | null, stage: string | null): string | null {
+  if (!runId) return null;
+  return `${runId}::${stage ?? "_"}`;
+}
+function getFbState(key: string): FallbackState {
+  const now = Date.now();
+  // 가벼운 청소: 1/64 확률로 만료 항목 정리
+  if ((now & 63) === 0) {
+    for (const [k, v] of _fbState) {
+      if (now - v.ts > FB_TTL_MS) _fbState.delete(k);
+    }
+  }
+  let s = _fbState.get(key);
+  if (!s || now - s.ts > FB_TTL_MS) {
+    s = { silentStreak: 0, conflictEscalated: false, ts: now };
+    _fbState.set(key, s);
+  } else {
+    s.ts = now;
+  }
+  return s;
+}
+
+// JSON 코드펜스(```json ... ```) 제거 후 재파싱 시도
+function tryParseJsonLoose(text: string): unknown | undefined {
+  if (!text) return undefined;
+  try { return JSON.parse(text); } catch { /* fallthrough */ }
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced) {
+    try { return JSON.parse(fenced[1].trim()); } catch { /* fallthrough */ }
+  }
+  // 선행/후행 잡문 사이의 첫 { ... } 또는 [ ... ] 추출
+  const m = text.match(/[\{\[][\s\S]*[\}\]]/);
+  if (m) {
+    try { return JSON.parse(m[0]); } catch { /* ignore */ }
+  }
+  return undefined;
+}
+
 
 export const Route = createFileRoute("/api/lessonplan/chat")({
   server: {
