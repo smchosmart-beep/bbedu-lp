@@ -207,7 +207,15 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           tier = "PRIMARY";
         } else {
           tier = pickTier(typeof stage === "number" ? stage : null);
-          if (tier !== "PRIMARY" && hasStageConflict(stage, messages)) tier = escalateTier(tier);
+          // 격상 잠금: 같은 run+stage에서 이전에 격상이 성공한 적이 있으면 즉시 한 단계 위로 시작
+          // (반복 충돌→매번 1콜 낭비 후 격상 패턴 차단).
+          const fbKeyEarly = _fbKey(runIdStr, stageStr);
+          const fbStateEarly = fbKeyEarly ? getFbState(fbKeyEarly) : null;
+          if (tier !== "PRIMARY" && fbStateEarly?.conflictEscalated) {
+            tier = escalateTier(tier);
+          } else if (tier !== "PRIMARY" && hasStageConflict(stage, messages)) {
+            tier = escalateTier(tier);
+          }
         }
 
         // 모델 결정: 위에서 PRIMARY 로 떨어진 명시 JSON 호출은 client model 그대로
