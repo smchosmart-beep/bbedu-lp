@@ -276,7 +276,7 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
             triedFallback = true;
             fallbackReason = reason;
             tierInUse = escalateTier(tierInUse);
-            modelInUse = pickModelForTier(tierInUse, model);
+            modelInUse = pickModelForTier(tierInUse, model, typeof stage === "number" ? stage : null);
             tcfgInUse = tierConfig(tierInUse);
           };
           // eslint-disable-next-line no-constant-condition
