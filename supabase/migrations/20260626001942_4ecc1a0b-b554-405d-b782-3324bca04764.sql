@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_usage_log ADD COLUMN IF NOT EXISTS fallback_reason text;
