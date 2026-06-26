@@ -206,21 +206,23 @@ export const Route = createFileRoute("/api/admin/$")({
               })
               .filter((x): x is string => !!x);
             type Bucket = { usd: number; calls: number };
+            type StageRetry = { calls: number; usd: number; reasons: Record<string, number> };
             type RunAgg = {
               usd: number; calls: number;
               byModel: Record<string, { prompt: number; output: number; calls: number; usd: number }>;
               byBucket: { build: Bucket; verify: Bucket; retry: Bucket };
               stageSeen: Record<string, number>;
+              retryByStage: Record<string, StageRetry>;
             };
             const krwLoggedByRun: Record<string, RunAgg> = {};
             if (runIds.length > 0) {
               const { data: logs } = await supabaseAdmin
                 .from("ai_usage_log")
-                .select("run_id, model, stage, prompt_tokens, output_tokens")
+                .select("run_id, model, stage, prompt_tokens, output_tokens, fallback_reason")
                 .in("run_id", runIds)
                 .limit(50000);
               for (const row of logs ?? []) {
-                const r = row as { run_id: string; model: string; stage: number | string | null; prompt_tokens: number; output_tokens: number };
+                const r = row as { run_id: string; model: string; stage: number | string | null; prompt_tokens: number; output_tokens: number; fallback_reason: string | null };
                 if (!r.run_id) continue;
                 const mid = resolveModelId(r.model ?? "unknown");
                 const p = Number(r.prompt_tokens ?? 0);
@@ -230,22 +232,29 @@ export const Route = createFileRoute("/api/admin/$")({
                   usd: 0, calls: 0, byModel: {},
                   byBucket: { build: { usd: 0, calls: 0 }, verify: { usd: 0, calls: 0 }, retry: { usd: 0, calls: 0 } },
                   stageSeen: {},
+                  retryByStage: {},
                 });
                 entry.usd += usd;
                 entry.calls += 1;
                 const mb = (entry.byModel[mid] ||= { prompt: 0, output: 0, calls: 0, usd: 0 });
                 mb.prompt += p; mb.output += o; mb.calls += 1; mb.usd += usd;
-                // 본문/검수 분류 (stage 99·100 = 검수/최종검토)
+                // 본문/검수 분류 (stage 99·100 = 검수/최종검토 — 의도된 lite→preview 2단계 캐스케이드)
                 const stageNum = Number(r.stage);
                 const isVerify = stageNum === 99 || stageNum === 100;
                 const bucket = isVerify ? entry.byBucket.verify : entry.byBucket.build;
                 bucket.usd += usd; bucket.calls += 1;
-                // 재시도 추정 — 같은 (run_id, stage) 2회차부터 retry 버킷에도 별도 집계
+                // 재시도 추정 — 검수(99·100)는 의도된 캐스케이드라 제외.
+                // 그 외 stage에서 같은 (run_id, stage) 2회차부터 retry 버킷·retryByStage 집계.
                 const sKey = String(r.stage ?? "_");
                 const seen = (entry.stageSeen[sKey] = (entry.stageSeen[sKey] || 0) + 1);
-                if (seen >= 2) {
+                if (seen >= 2 && !isVerify) {
                   entry.byBucket.retry.usd += usd;
                   entry.byBucket.retry.calls += 1;
+                  const rs = (entry.retryByStage[sKey] ||= { calls: 0, usd: 0, reasons: {} });
+                  rs.calls += 1;
+                  rs.usd += usd;
+                  const reason = r.fallback_reason || "unknown";
+                  rs.reasons[reason] = (rs.reasons[reason] || 0) + 1;
                 }
               }
             }
@@ -262,6 +271,14 @@ export const Route = createFileRoute("/api/admin/$")({
                 verify: { krw: Math.round(logged.byBucket.verify.usd * KRW_PER_USD), calls: logged.byBucket.verify.calls },
                 retry:  { krw: Math.round(logged.byBucket.retry.usd  * KRW_PER_USD), calls: logged.byBucket.retry.calls },
               } : null;
+              const retryByStage = logged
+                ? Object.fromEntries(
+                    Object.entries(logged.retryByStage).map(([k, v]) => [
+                      k,
+                      { calls: v.calls, krw: Math.round(v.usd * KRW_PER_USD), reasons: v.reasons },
+                    ]),
+                  )
+                : null;
               return {
                 id: r.id,
                 fileName: r.file_name,
