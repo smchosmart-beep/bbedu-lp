@@ -6,7 +6,7 @@ const INTER_API_URL = "/api/lessonplan/inter";
 // 모델 성능 문제로 3.5-flash 고정 버전. 메인(2.5-flash, Interactions)과 코드를 분리해
 // 이 파일에서 가드·프롬프트를 자유롭게 단순화한다. 트래픽은 variant="v35"로 분리 집계(관리자 admin35).
 const VARIANT = "v35";
-const FORCE_MODEL = "gemini-3-flash-preview";
+const FORCE_MODEL = "gemini-3.5-flash";
 // 35 분기는 generateContent 경로(USE_INTER=false) — 프록시 /chat의 explicit 컨텍스트 캐시(시스템프롬프트+함수정의를 캐시 단가)와
 // buildAPIMessages의 오래된 RAG 결과 압축으로 입력 토큰·비용을 줄인다. Interactions로 되돌리려면 true로만 바꾸면 됨.
 const USE_INTER = false;
@@ -42,7 +42,7 @@ const state = {
   callSeq: 0,          // tool_call id 생성용
   recentlyUpdated: new Set(),   // 직전 update_plan으로 바뀐 필드 키 — 미리보기 셀 강조용
   usage: { calls: 0, prompt: 0, output: 0, cached: 0 },   // 세션 누적 토큰(합계 — 호환용)
-  usageByModel: {},   // 모델별 누적 토큰: {"google/gemini-3-flash-preview":{prompt,output,calls}, ...} — 2-Tier 라우팅 정확 환산용
+  usageByModel: {},   // 모델별 누적 토큰: {"google/gemini-3.5-flash":{prompt,output,calls}, ...} — 2-Tier 라우팅 정확 환산용
   verifyUsd: 0,          // 세션 누적 품질 검수 비용(USD) — 검수 호출 _usd 누적, 저장 시 단건 비용에 합산(검수 모델 단가 서버 환산본)
   reviewNote: null,      // 방금 외부 검토자(🔎)가 준 의견 — 이걸 본 교사가 다음에 발화하면 그 발화와 함께 1회 본 대화 맥락에 주입(독립 검토라 메인 LLM은 모르므로)
   confirmedChoices: new Set(),   // 사용자가 확정한 CHOICE_PLAN_KEY(normField)들 — LLM이 이미 끝낸 항목 카드를 다시 띄우면(같은 단계 반복·이전 단계로 되돌아감) 가드로 차단
@@ -1978,8 +1978,8 @@ async function verifyPlanQuality() {
   if (b.ok) return { issues: b.issues, unavailable: false };
   if (a.ok) return { issues: a.issues, unavailable: false };
 
-  // 둘 다 실패 → gemini-3-flash-preview 최종 폴백
-  const c = await callOne("gemini-3-flash-preview");
+  // 둘 다 실패 → gemini-3.5-flash 최종 폴백
+  const c = await callOne("gemini-3.5-flash");
   if (c.ok) return { issues: c.issues, unavailable: false };
   return { issues: [], unavailable: true };
 }
@@ -2202,7 +2202,7 @@ async function runExternalReview() {
     messages: [{ role: "system", content: REVIEW_SYS }, { role: "user", content: "다음 교수·학습 과정안을 검토해 주세요(JSON):\n" + JSON.stringify(fields) }],
     json: true, maxTokens: 1500, stage: 100, runId: state.runId,
   };
-  const tryModels = ["gemini-3-flash-preview", "gemini-2.5-flash"];
+  const tryModels = ["gemini-3.5-flash", "gemini-3-flash-preview", "gemini-2.5-flash"];
   for (const model of tryModels) {
     try {
       const res = await fetch(API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...reqBody, model, variant: VARIANT }) });
