@@ -1727,22 +1727,113 @@ function fallbackOptions(field) {
 }
 
 /* ── tool 디스패치 (동기) ── */
+/* === B3 가드: stage 6·9·10 멀티콜 절감 ===
+   B3-1 present_choices 반복 상한, B3-2 RAG 결과 캐시, B3-3 stage 6 RAG 횟수 가드.
+   회귀 시 1줄 비활성화: 아래 *_ENABLED 를 false 로. */
+const RAG_CACHE_ENABLED = true;
+const RAG_COUNT_GUARD_ENABLED = true;
+const CHOICES_CAP_ENABLED = true;
+const MAX_CHOICES_PER_FIELD = 2;      // LLM 자발적 재호출 한도(사용자 regenerate 응답은 제외)
+const STAGE6_RAG_MAX = 6;             // stage 6 RAG 누적 호출 상한(보수)
+// 세션-내 가드 상태: stage 전환 시 부분 리셋
+const _b3 = {
+  ragCache: new Map(),        // key="stage|name|argsJSON" → result(JSON.parse 결과)
+  ragCount: {},               // stage → RAG 누적 호출 수
+  choicesCount: {},           // "stage|field" → LLM 자발 호출 누적 수
+  lastStage: null,
+};
+function _b3MaybeRotate(stage) {
+  if (stage == null) return;
+  if (_b3.lastStage !== stage) {
+    // 직전 stage 캐시·카운터 정리(현재 stage 키만 남김)
+    const keep = String(stage);
+    for (const k of Array.from(_b3.ragCache.keys())) {
+      if (!k.startsWith(keep + "|")) _b3.ragCache.delete(k);
+    }
+    _b3.lastStage = stage;
+  }
+}
+function _b3StableKey(obj) {
+  try {
+    if (!obj || typeof obj !== "object") return JSON.stringify(obj ?? null);
+    const keys = Object.keys(obj).sort();
+    const norm = {};
+    for (const k of keys) norm[k] = obj[k];
+    return JSON.stringify(norm);
+  } catch { return ""; }
+}
+const _RAG_NAMES = new Set(["find_standards", "list_competencies", "list_core_ideas", "list_considerations", "list_lesson_models"]);
+
 function runTool(name, args) {
   try {
-    switch (name) {
-      case "find_standards":      return ragFindStandards(args);
-      case "list_competencies":   return ragListCompetencies(args);
-      case "list_core_ideas":     return ragListCoreIdeas(args);
-      case "list_considerations": return ragListConsiderations(args);
-      case "list_lesson_models":  return ragListLessonModels(args);
-      case "update_plan":         return doUpdatePlan(args);
-      // complete_plan은 async(LLM 검수 포함)라 runConversation에서 await로 직접 처리
-      default:                    return { error: `unknown tool: ${name}` };
+    // === B3 가드 진입(RAG에만 적용) ===
+    const stage = detectStage(state.partialPlan);
+    if (_RAG_NAMES.has(name)) {
+      _b3MaybeRotate(stage);
+      // B3-3: stage 6 RAG 누적 상한
+      if (RAG_COUNT_GUARD_ENABLED && stage === 6) {
+        const used = _b3.ragCount[6] || 0;
+        if (used >= STAGE6_RAG_MAX) {
+          console.warn(`[b3-rag-cap] stage=6 used=${used} name=${name} — stop hint 주입`);
+          return { stop: true, note: "RAG 충분히 조회했습니다. 보유 후보로 present_choices를 호출하거나, 평가 단계의 다음 항목으로 진행하세요." };
+        }
+      }
+      // B3-2: 같은 stage·같은 인자 캐시 hit
+      if (RAG_CACHE_ENABLED && stage != null) {
+        const key = `${stage}|${name}|${_b3StableKey(args)}`;
+        if (_b3.ragCache.has(key)) {
+          console.warn(`[b3-rag-cache-hit] stage=${stage} name=${name}`);
+          const cached = _b3.ragCache.get(key);
+          // hint를 result에 같이 실어, 다음 LLM 콜이 추가 RAG 없이 present_choices로 정리하도록 유도
+          return { ...cached, cached: true, hint: "이미 동일 인자로 받은 결과를 재사용합니다. 추가 RAG 호출 없이 present_choices로 정리하세요." };
+        }
+      }
+      // 카운트는 실제 실행 직전에 증가
+      _b3.ragCount[stage] = (_b3.ragCount[stage] || 0) + 1;
     }
+
+    let res;
+    switch (name) {
+      case "find_standards":      res = ragFindStandards(args); break;
+      case "list_competencies":   res = ragListCompetencies(args); break;
+      case "list_core_ideas":     res = ragListCoreIdeas(args); break;
+      case "list_considerations": res = ragListConsiderations(args); break;
+      case "list_lesson_models":  res = ragListLessonModels(args); break;
+      case "update_plan":         res = doUpdatePlan(args); break;
+      // complete_plan은 async(LLM 검수 포함)라 runConversation에서 await로 직접 처리
+      default:                    res = { error: `unknown tool: ${name}` };
+    }
+
+    // RAG 결과 캐싱(에러는 캐시 안 함)
+    if (RAG_CACHE_ENABLED && _RAG_NAMES.has(name) && stage != null && res && !res.error) {
+      const key = `${stage}|${name}|${_b3StableKey(args)}`;
+      _b3.ragCache.set(key, res);
+    }
+    return res;
   } catch (e) {
     return { error: String(e.message || e) };
   }
 }
+
+// B3-1: present_choices 진입 시 호출. true 반환 시 카드 표시 차단.
+// user-regenerate(사용자 "다시 제안") 응답으로 인한 재호출은 카운트하지 않음.
+function _b3ChoicesCapHit(stage, field) {
+  if (!CHOICES_CAP_ENABLED || stage == null || !field) return false;
+  const key = `${stage}|${field}`;
+  const wasUserRegen = !!state._lastUserRegen;
+  // 사용자 regenerate 응답으로 인한 직후 호출은 카운트에서 제외
+  if (wasUserRegen) {
+    state._lastUserRegen = false;
+    return false;
+  }
+  const n = (_b3.choicesCount[key] = (_b3.choicesCount[key] || 0) + 1);
+  if (n > MAX_CHOICES_PER_FIELD) {
+    console.warn(`[b3-choices-cap] stage=${stage} field=${field} count=${n}`);
+    return true;
+  }
+  return false;
+}
+
 
 /* ── RAG: 교육과정 데이터 조회 (환각 0) ── */
 function ragFindStandards({ 교과, 학년, 학기, 단원, 출판사 }) {
