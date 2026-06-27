@@ -1447,11 +1447,14 @@ async function runConversation() {
           return;
         }
         // 선택지는 항상 카드로 — 본문에 후보 불릿이 있거나 선택/제안/추천/후보 어휘만 있어도 최대 2회 재요청
+        // (단, stage 10·11은 자동 작성·검수 단계라 사용자에게 다시 선택을 묻지 않으므로 재요청 비활성)
         {
+          const _stageNow = detectStage(state.partialPlan);
+          const _skipChoiceRetry = typeof _stageNow === "number" && _stageNow >= 10;
           const _txt = content || "";
           const _bulletCount = (_txt.match(/^[ \t]*(?:[-*•]|[①-⑩]|\d+[.)])\s+\S/gm) || []).length;
           const _hasChoicePhrase = /(골라|고르|선택|제안|추천|후보|마음에\s*드는|다음\s*중|세\s*가지|3\s*가지|두\s*가지|2\s*가지|어떤\s*것)/.test(_txt);
-          if (choiceRetried < 2 && (_bulletCount >= 2 || _hasChoicePhrase)) {
+          if (!_skipChoiceRetry && choiceRetried < 2 && (_bulletCount >= 2 || _hasChoicePhrase)) {
             choiceRetried++;
             const msg = choiceRetried === 1
               ? "방금 안내한 항목의 선택지를 지금 present_choices 카드로 띄워 주세요(채팅에 번호·불릿으로 나열하지 말고). 도구는 본문 텍스트로 적지 말고 반드시 실제 함수 호출로 보내세요."
