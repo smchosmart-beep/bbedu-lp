@@ -287,7 +287,7 @@ function renderFiles() {
        <td class="px-2 max-w-[180px] truncate" title="${esc(f.수업주제)}">${esc(f.수업주제)}</td>
        <td class="px-2 whitespace-nowrap text-slate-600" title="${esc(mlabel.tip)}">${esc(mlabel.label)}</td>
        <td class="px-2 text-right whitespace-nowrap text-slate-500" title="${esc(fullTip)}">${esc(costCell)}</td>
-       <td class="px-2 text-right whitespace-nowrap text-brand-600 font-medium" title="${esc(fullTip)}">${loggedCell}${retryBadge}</td>
+       <td class="px-2 text-right whitespace-nowrap text-brand-600 font-medium" title="${esc(fullTip)}">${loggedCell}${retryBadge}${multiturnBadge}</td>
        <td class="px-2 text-right whitespace-nowrap font-medium">${diffCell}</td>
        <td class="text-right px-2"></td>`;
     const btn = document.createElement("button");
