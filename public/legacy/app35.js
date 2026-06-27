@@ -1442,12 +1442,17 @@ async function runConversation() {
           state.loading = false; setComposerEnabled(true); updateProgress(); saveState();
           return;
         }
-        // "골라/선택해 주세요·추천해 드립니다"라 안내하고 present_choices를 빠뜨렸으면 1회 자동 재요청
-        if (!choiceRetried && /(골라|선택해|선택하여|고르)\s*주세요|고르세요|추천해\s*드립니다|선택해\s*주십시오/.test(content || "")) {
-          choiceRetried = true;
-          state.messages.push({ role: "user", content: "방금 안내한 항목의 선택지를 지금 present_choices 카드로 띄워 주세요(채팅에 번호로 나열하지 말고). 도구는 채팅 본문에 텍스트(예: '태그: present_choices(...)')로 적지 말고 반드시 실제 함수 호출로 보내세요." });
-          if (!loader) loader = addLoader();
-          continue;
+        // "골라/선택해/제안" 안내 또는 본문에 후보 불릿이 ≥2개 있으면서 present_choices를 빠뜨렸으면 1회 자동 재요청
+        {
+          const _txt = content || "";
+          const _bulletCount = (_txt.match(/^[ \t]*(?:[-*•]|[①-⑩]|\d+[.)])\s+\S/gm) || []).length;
+          const _hasChoicePhrase = /(골라|고르|선택|제안|추천|후보|마음에\s*드는|다음\s*중|세\s*가지|3\s*가지|두\s*가지|2\s*가지)/.test(_txt);
+          if (!choiceRetried && ((_hasChoicePhrase && _bulletCount >= 2) || /(골라|선택해|선택하여|고르)\s*주세요|고르세요|추천해\s*드립니다|선택해\s*주십시오/.test(_txt))) {
+            choiceRetried = true;
+            state.messages.push({ role: "user", content: "방금 안내한 항목의 선택지를 지금 present_choices 카드로 띄워 주세요(채팅에 번호·불릿으로 나열하지 말고). 도구는 채팅 본문에 텍스트로 적지 말고 반드시 실제 함수 호출로 보내세요." });
+            if (!loader) loader = addLoader();
+            continue;
+          }
         }
         // "반영/수정/채웠다"고 말해놓고 이 턴에 update_plan을 한 번도 안 불렀으면 1회 재요청.
         // (값을 정/수정했다 선언했는데 미리보기 미반영 → 사용자가 본 ~5% 누락. 빈칸·옛 값 stale 모두 해당)
