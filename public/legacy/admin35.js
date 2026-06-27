@@ -276,7 +276,9 @@ function renderFiles() {
     const breakdown = costBreakdownTip(f);
     const fullTip = breakdown ? `${tip}\n\n${breakdown}` : tip;
     const retryCalls = (f.costBuckets && f.costBuckets.retry && f.costBuckets.retry.calls) || 0;
-    const retryBadge = retryCalls > 0 ? ` <span class="text-[10px] text-amber-600" title="재시도 추정 ${retryCalls}콜">🔁${retryCalls}</span>` : "";
+    const multiturnCalls = (f.costBuckets && f.costBuckets.multiturn && f.costBuckets.multiturn.calls) || 0;
+    const retryBadge = retryCalls > 0 ? ` <span class="text-[10px] text-rose-600" title="회귀 ${retryCalls}콜 (fallback_reason 있음)">🔁${retryCalls}</span>` : "";
+    const multiturnBadge = multiturnCalls > 0 ? ` <span class="text-[10px] text-slate-400" title="정상 멀티턴 ${multiturnCalls}콜">⇄${multiturnCalls}</span>` : "";
     tr.innerHTML =
       `<td class="py-1.5 px-2 whitespace-nowrap text-slate-500">${esc(dt)}</td>
        <td class="px-2">${esc(f.학년)}</td><td class="px-2">${esc(f.학기)}</td><td class="px-2">${esc(f.교과)}</td>
