@@ -1622,11 +1622,16 @@ async function runConversationInter() {
 
       if (!functionCalls.length) {
         // 순수 텍스트 응답 — 턴 종료(또는 재요청). 재요청을 유발한 '잘못된' 텍스트는 표시하지 않고 스피너만 유지.
-        if (!choiceRetried && /(골라|선택해|선택하여|고르)\s*주세요|고르세요|추천해\s*드립니다|선택해\s*주십시오/.test(content || "")) {
-          choiceRetried = true;
-          state.interInput = "방금 안내한 항목의 선택지를 지금 present_choices 카드로 띄워 주세요(채팅에 번호로 나열하지 말고).";
-          if (!loader) loader = addLoader();
-          continue;
+        {
+          const _txt = content || "";
+          const _bulletCount = (_txt.match(/^[ \t]*(?:[-*•]|[①-⑩]|\d+[.)])\s+\S/gm) || []).length;
+          const _hasChoicePhrase = /(골라|고르|선택|제안|추천|후보|마음에\s*드는|다음\s*중|세\s*가지|3\s*가지|두\s*가지|2\s*가지)/.test(_txt);
+          if (!choiceRetried && ((_hasChoicePhrase && _bulletCount >= 2) || /(골라|선택해|선택하여|고르)\s*주세요|고르세요|추천해\s*드립니다|선택해\s*주십시오/.test(_txt))) {
+            choiceRetried = true;
+            state.interInput = "방금 안내한 항목의 선택지를 지금 present_choices 카드로 띄워 주세요(채팅에 번호·불릿으로 나열하지 말고). 도구는 본문 텍스트로 적지 말고 반드시 실제 함수 호출로 보내세요.";
+            if (!loader) loader = addLoader();
+            continue;
+          }
         }
         if (!updateRetried && !updatedThisTurn &&
             /(반영|수정|변경|업데이트|보완|기입|입력|작성|추가)(했|하였|해\s*드렸|해\s*두었|해\s*놨)|채웠|고쳤|바꿨|넣었|적었/.test(content || "") &&
