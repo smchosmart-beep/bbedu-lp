@@ -972,6 +972,7 @@ function showChoiceCard(c) {
         regenBtn.textContent = `🔄 다시 추천 중… (${state.regenCount[fldNorm]}/${REGEN_MAX})`;
         state.confirmedChoices.delete(fldNorm);   // 사용자가 이 항목의 다른 후보를 요청 → 그 항목만 가드 해제
         addUser(`다른 ${c.field} 후보를 추천해 주세요`);
+        state._lastUserRegen = true;   // B3-1: 직후 LLM의 present_choices 재호출은 카운트 제외
         answerPendingCall({ field: c.field, regenerate: true });
       });
     }
