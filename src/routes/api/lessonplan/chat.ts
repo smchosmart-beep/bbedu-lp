@@ -155,6 +155,7 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           stage,
           runId,
           forceTier,
+          toolChoice,
         } = body as {
           messages?: unknown;
           tools?: unknown;
@@ -167,7 +168,10 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
           stage?: number;
           runId?: string;
           forceTier?: Tier;
+          toolChoice?: "auto" | "required" | "none";
         };
+        const safeToolChoice: "auto" | "required" | "none" =
+          toolChoice === "required" || toolChoice === "none" ? toolChoice : "auto";
         const stageStr = typeof stage === "number" && Number.isFinite(stage) ? String(stage) : null;
         const runIdStr = typeof runId === "string" && runId.trim() ? runId.trim().slice(0, 64) : null;
         // Step 0 진단: stage 누락 호출 추적 (라우팅 변경 효과 측정의 SSoT)
