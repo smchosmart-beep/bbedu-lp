@@ -159,7 +159,7 @@ const STAGE_GUIDES = {
 
   9: `전개 활동 구성: 8단계에서 고른 모형의 단계를 전개 활동의 뼈대로 삼습니다. 단계가 있으면 그 흐름에 대응해 구성하고, 없으면 학습목표에 맞게 자유 구성합니다. 활동 흐름(세트)을 2~3개 제안하되, 한 옵션 = 한 세트(활동 2~3개 묶음)로 present_choices(multi=false, allow_regenerate=true)에 담고, 각 옵션은 "① 활동명1 → ② 활동명2 → ③ 활동명3" 형태로 적습니다. 고른 세트의 활동들로 10단계 전개_sub를 구성합니다.`,
 
-  10: `교수·학습 활동: 고른 세트로 도입·전개·정리를 작성해 반영합니다. update_plan은 단계별로 나눠 작게 호출하세요(한 호출에 모든 단계를 몰아넣으면 함수 인자 생성이 깨집니다 — MALFORMED_FUNCTION_CALL): ①도입(도입_* + "전개_num_subs"), ②전개 활동을 하나씩(전개_sub1_* → 전개_sub2_* …, 각 호출에 그 활동의 필드만), ③정리(정리_*). 각 update_plan의 fields 배열에는 한 단계(또는 한 전개 활동)의 필드만 담아 작게 유지합니다(각 value는 여러 줄·기호를 그대로 적고 JSON으로 다시 감싸지 않습니다). 각 단계·활동마다 학습형태·교사활동(◉◦-)·학생활동·시간(분)·자료유의평가를 모두 채우고, 도입·전개·정리 세 단계의 교사활동·학생활동을 쌍으로 채웁니다(정리 단계 포함). 전개에 활동이 여러 개면 "전개_num_subs"와 활동마다 "전개_sub{i}_교사활동/학생활동/시간/자료유의평가"를 넣습니다. 8단계 모형의 단계명을 각 활동의 '단계' 키에 대응시킵니다(다중="전개_sub{i}_단계", 단일·도입·정리="전개_단계"/"도입_단계"/"정리_단계"; 단계명은 모형 단계만 짧게, 활동명과 분리; 단계 없는 모형·미선택이면 비움). ★시간 합은 정확히 40분(±0): 도입 5 / 전개 25~30 / 정리 5. update_plan 결과에 warn이 오거나 합이 40이 아니면 가장 긴 전개_sub{i}_시간만 보정해서 즉시 update_plan을 다시 호출하세요. 채팅 본문에 "fields: [...]"나 {"fields":...} 같은 JSON을 절대 적지 마세요(도구 호출만으로 표현). 활동 반영 후 반드시 11단계로 진행합니다. ★ 이 단계에서는 절대 complete_plan을 호출하지 마세요 — 검수는 11단계 끝에서 수행합니다.`,
+  10: `교수·학습 활동: 8단계 모형 + 9단계에서 고른 활동 세트로 도입·전개·정리를 모두 자동 작성해 반영합니다. ★ 이 단계에서는 절대 present_choices를 호출하지 마세요(활동명·활동 내용·시간·자료 등을 사용자에게 다시 묻지 않습니다 — 9단계에서 이미 세트를 골랐습니다). 곧바로 update_plan만 사용해 전부 채웁니다. update_plan은 단계별로 나눠 작게 호출하세요(한 호출에 모든 단계를 몰아넣으면 함수 인자 생성이 깨집니다 — MALFORMED_FUNCTION_CALL): ①도입(도입_* + "전개_num_subs"), ②전개 활동을 하나씩(전개_sub1_* → 전개_sub2_* …, 각 호출에 그 활동의 필드만), ③정리(정리_*). 각 update_plan의 fields 배열에는 한 단계(또는 한 전개 활동)의 필드만 담아 작게 유지합니다(각 value는 여러 줄·기호를 그대로 적고 JSON으로 다시 감싸지 않습니다). 각 단계·활동마다 학습형태·교사활동(◉◦-)·학생활동·시간(분)·자료유의평가를 모두 채우고, 도입·전개·정리 세 단계의 교사활동·학생활동을 쌍으로 채웁니다(정리 단계 포함). 전개에 활동이 여러 개면 "전개_num_subs"와 활동마다 "전개_sub{i}_교사활동/학생활동/시간/자료유의평가"를 넣습니다. 8단계 모형의 단계명을 각 활동의 '단계' 키에 대응시킵니다(다중="전개_sub{i}_단계", 단일·도입·정리="전개_단계"/"도입_단계"/"정리_단계"; 단계명은 모형 단계만 짧게, 활동명과 분리; 단계 없는 모형·미선택이면 비움). ★시간 합은 정확히 40분(±0): 도입 5 / 전개 25~30 / 정리 5. update_plan 결과에 warn이 오거나 합이 40이 아니면 가장 긴 전개_sub{i}_시간만 보정해서 즉시 update_plan을 다시 호출하세요. 채팅 본문에 "fields: [...]"나 {"fields":...} 같은 JSON을 절대 적지 마세요(도구 호출만으로 표현). 활동 반영 후 반드시 11단계로 진행합니다. ★ 이 단계에서는 절대 complete_plan을 호출하지 마세요 — 검수는 11단계 끝에서 수행합니다.`,
 
   11: `수업자 의도 → 검토 → 완료: ★ 10단계에서 곧장 complete_plan을 호출하면 안 됩니다. 반드시 본 단계에서 "수업자의도"를 먼저 update_plan으로 저장한 뒤에만 complete_plan을 호출합니다. 완성된 설계를 바탕으로 수업자 의도(왜 이렇게 설계했는지, 주안점)를 3~5문장으로 update_plan("수업자의도"). 그다음 "이제 전체 과정안을 검토하겠습니다."라고 한 줄 안내하고 complete_plan을 호출합니다(검토는 complete_plan이 수행하므로 따로 점검 보고하지 않습니다). complete_plan이 ok:true면 완료를 알리고, ok:false면 지적 사항을 사용자에게 간단히 전한 뒤 update_plan으로 고쳐 다시 complete_plan을 호출합니다(ok:true를 받기 전에는 "완료됐습니다"라고 하지 않습니다).`,
 };
@@ -1192,10 +1192,9 @@ async function callLLM(messages, maxTokens = 16000, onRetry = null, opts = {}) {
   if (Array.isArray(messages) && messages[0] && messages[0].role === "system") {
     messages = [{ role: "system", content: buildSystemPrompt(stage) }, ...messages.slice(1)];
   }
-  // stage 2~10은 매 턴 도구 호출(present_choices·update_plan·list_*·find_* 등)로 끝나야 정상.
-  // tool_choice="required" 강제로 본문에 후보를 텍스트만 적는 회귀를 서버 단에서 차단.
-  // (검수 99·100은 JSON 모드라 tools 없음 → 무관)
-  const forceTool = typeof stage === "number" && stage >= 2 && stage <= 10;
+  // stage 2~9는 도구 호출(present_choices·update_plan·list_*·find_* 등)로 끝나야 정상 — 회귀 차단.
+  // stage 10(자동 작성)·11(검수)은 update_plan/complete_plan 자율 호출이 자연스러워 강제하지 않음.
+  const forceTool = typeof stage === "number" && stage >= 2 && stage <= 9;
   const toolChoice = opts.toolChoice || (forceTool ? "required" : "auto");
   for (let attempt = 0; ; attempt++) {
     let res;
@@ -1448,11 +1447,14 @@ async function runConversation() {
           return;
         }
         // 선택지는 항상 카드로 — 본문에 후보 불릿이 있거나 선택/제안/추천/후보 어휘만 있어도 최대 2회 재요청
+        // (단, stage 10·11은 자동 작성·검수 단계라 사용자에게 다시 선택을 묻지 않으므로 재요청 비활성)
         {
+          const _stageNow = detectStage(state.partialPlan);
+          const _skipChoiceRetry = typeof _stageNow === "number" && _stageNow >= 10;
           const _txt = content || "";
           const _bulletCount = (_txt.match(/^[ \t]*(?:[-*•]|[①-⑩]|\d+[.)])\s+\S/gm) || []).length;
           const _hasChoicePhrase = /(골라|고르|선택|제안|추천|후보|마음에\s*드는|다음\s*중|세\s*가지|3\s*가지|두\s*가지|2\s*가지|어떤\s*것)/.test(_txt);
-          if (choiceRetried < 2 && (_bulletCount >= 2 || _hasChoicePhrase)) {
+          if (!_skipChoiceRetry && choiceRetried < 2 && (_bulletCount >= 2 || _hasChoicePhrase)) {
             choiceRetried++;
             const msg = choiceRetried === 1
               ? "방금 안내한 항목의 선택지를 지금 present_choices 카드로 띄워 주세요(채팅에 번호·불릿으로 나열하지 말고). 도구는 본문 텍스트로 적지 말고 반드시 실제 함수 호출로 보내세요."
