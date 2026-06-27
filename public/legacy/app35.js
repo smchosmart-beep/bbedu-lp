@@ -1693,6 +1693,14 @@ async function runConversationInter() {
           if (!loader) loader = addLoader();
           continue;
         }
+        // B3-1: present_choices LLM 자발 재호출 상한 — 차단 시 카드 대신 stop 응답 주입
+        if (_b3ChoicesCapHit(detectStage(state.partialPlan), a.field || "")) {
+          results.push({ type: "function_result", name: "present_choices", call_id: pending.callId,
+            result: [{ type: "text", text: JSON.stringify({ error: "choices_cap", field: a.field, note: `'${a.field}' 항목은 후보 제시 ${MAX_CHOICES_PER_FIELD}회 한도에 도달했습니다. 새 카드를 띄우지 말고, 보유 후보로 사용자에게 직접 입력을 받거나 다음 단계로 진행하세요.` }) }] });
+          state.interInput = results;
+          if (!loader) loader = addLoader();
+          continue;
+        }
         const cardArgs = {
           field: a.field || "항목", intro: a.intro || "", options: opts,
           multi: !!a.multi, custom: a.allow_custom !== false, none: !!a.allow_none, regenerate: !!a.allow_regenerate,
