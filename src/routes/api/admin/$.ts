@@ -210,9 +210,10 @@ export const Route = createFileRoute("/api/admin/$")({
             type RunAgg = {
               usd: number; calls: number;
               byModel: Record<string, { prompt: number; output: number; calls: number; usd: number }>;
-              byBucket: { build: Bucket; verify: Bucket; retry: Bucket };
+              byBucket: { build: Bucket; verify: Bucket; retry: Bucket; multiturn: Bucket };
               stageSeen: Record<string, number>;
               retryByStage: Record<string, StageRetry>;
+              multiturnByStage: Record<string, { calls: number; usd: number }>;
             };
             const krwLoggedByRun: Record<string, RunAgg> = {};
             if (runIds.length > 0) {
@@ -230,9 +231,10 @@ export const Route = createFileRoute("/api/admin/$")({
                 const usd = estimateCostUsd(mid, p, o);
                 const entry = (krwLoggedByRun[r.run_id] ||= {
                   usd: 0, calls: 0, byModel: {},
-                  byBucket: { build: { usd: 0, calls: 0 }, verify: { usd: 0, calls: 0 }, retry: { usd: 0, calls: 0 } },
+                  byBucket: { build: { usd: 0, calls: 0 }, verify: { usd: 0, calls: 0 }, retry: { usd: 0, calls: 0 }, multiturn: { usd: 0, calls: 0 } },
                   stageSeen: {},
                   retryByStage: {},
+                  multiturnByStage: {},
                 });
                 entry.usd += usd;
                 entry.calls += 1;
@@ -243,18 +245,26 @@ export const Route = createFileRoute("/api/admin/$")({
                 const isVerify = stageNum === 99 || stageNum === 100;
                 const bucket = isVerify ? entry.byBucket.verify : entry.byBucket.build;
                 bucket.usd += usd; bucket.calls += 1;
-                // 재시도 추정 — 검수(99·100)는 의도된 캐스케이드라 제외.
-                // 그 외 stage에서 같은 (run_id, stage) 2회차부터 retry 버킷·retryByStage 집계.
+                // === 분류 (상호배타) ===
+                // 1) retry(회귀): fallback_reason !== null 인 행만. 진짜 tier 격상/MALFORMED/json-parse/silent-toolcall.
+                // 2) multiturn(정상): 같은 (run_id, stage) 2회차+ 이면서 fallback_reason === null. 검수(99·100) 제외.
+                //    한 stage에서 RAG→반영→다음 도구 같은 의도된 multi-turn 흐름. 비용 낭비 아님.
                 const sKey = String(r.stage ?? "_");
                 const seen = (entry.stageSeen[sKey] = (entry.stageSeen[sKey] || 0) + 1);
-                if (seen >= 2 && !isVerify) {
+                if (r.fallback_reason) {
                   entry.byBucket.retry.usd += usd;
                   entry.byBucket.retry.calls += 1;
                   const rs = (entry.retryByStage[sKey] ||= { calls: 0, usd: 0, reasons: {} });
                   rs.calls += 1;
                   rs.usd += usd;
-                  const reason = r.fallback_reason || "unknown";
+                  const reason = r.fallback_reason;
                   rs.reasons[reason] = (rs.reasons[reason] || 0) + 1;
+                } else if (seen >= 2 && !isVerify) {
+                  entry.byBucket.multiturn.usd += usd;
+                  entry.byBucket.multiturn.calls += 1;
+                  const ms = (entry.multiturnByStage[sKey] ||= { calls: 0, usd: 0 });
+                  ms.calls += 1;
+                  ms.usd += usd;
                 }
               }
             }
@@ -267,9 +277,10 @@ export const Route = createFileRoute("/api/admin/$")({
               const krwLogged = logged ? Math.round(logged.usd * KRW_PER_USD) : null;
               const byModelClient = (u.byModel ?? null) as Record<string, unknown> | null;
               const costBuckets = logged ? {
-                build:  { krw: Math.round(logged.byBucket.build.usd  * KRW_PER_USD), calls: logged.byBucket.build.calls },
-                verify: { krw: Math.round(logged.byBucket.verify.usd * KRW_PER_USD), calls: logged.byBucket.verify.calls },
-                retry:  { krw: Math.round(logged.byBucket.retry.usd  * KRW_PER_USD), calls: logged.byBucket.retry.calls },
+                build:     { krw: Math.round(logged.byBucket.build.usd     * KRW_PER_USD), calls: logged.byBucket.build.calls },
+                verify:    { krw: Math.round(logged.byBucket.verify.usd    * KRW_PER_USD), calls: logged.byBucket.verify.calls },
+                retry:     { krw: Math.round(logged.byBucket.retry.usd     * KRW_PER_USD), calls: logged.byBucket.retry.calls },
+                multiturn: { krw: Math.round(logged.byBucket.multiturn.usd * KRW_PER_USD), calls: logged.byBucket.multiturn.calls },
               } : null;
               const retryByStage = logged
                 ? Object.fromEntries(
@@ -279,6 +290,15 @@ export const Route = createFileRoute("/api/admin/$")({
                     ]),
                   )
                 : null;
+              const multiturnByStage = logged
+                ? Object.fromEntries(
+                    Object.entries(logged.multiturnByStage).map(([k, v]) => [
+                      k,
+                      { calls: v.calls, krw: Math.round(v.usd * KRW_PER_USD) },
+                    ]),
+                  )
+                : null;
+
               return {
                 id: r.id,
                 fileName: r.file_name,
@@ -291,6 +311,7 @@ export const Route = createFileRoute("/api/admin/$")({
                 byModelClient,
                 costBuckets,
                 retryByStage,
+                multiturnByStage,
                 runId: rid ?? null,
                 calls: Number(u.calls ?? 0),
                 토큰: {

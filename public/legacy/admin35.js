@@ -223,7 +223,7 @@ function byModelTip(f) {
   }).join("\n");
 }
 
-// 비용 구성 분해(본문/검수/재시도) — 로그 SSoT 기반. 없으면 빈 문자열.
+// 비용 구성 분해(본문/검수/재시도-회귀/멀티턴-정상) — 로그 SSoT 기반. 없으면 빈 문자열.
 function costBreakdownTip(f) {
   const cb = f.costBuckets;
   if (!cb) return "";
@@ -231,14 +231,17 @@ function costBreakdownTip(f) {
   const total = (cb.build?.krw || 0) + (cb.verify?.krw || 0);
   const lines = [
     "— 비용 구성 (로그 SSoT) —",
-    `본문    ${fmt(cb.build?.krw)}  (${cb.build?.calls || 0}콜)`,
-    `검수    ${fmt(cb.verify?.krw)}  (${cb.verify?.calls || 0}콜)`,
-    `재시도† ${fmt(cb.retry?.krw)}  (${cb.retry?.calls || 0}콜)`,
-    `합계    ${fmt(total)}`,
-    "† 같은 stage 중복 호출 추정(본문/검수에 이미 포함된 금액 중 재시도분)",
+    `본문         ${fmt(cb.build?.krw)}  (${cb.build?.calls || 0}콜)`,
+    `검수         ${fmt(cb.verify?.krw)}  (${cb.verify?.calls || 0}콜)`,
+    `재시도†(회귀) ${fmt(cb.retry?.krw)}  (${cb.retry?.calls || 0}콜)`,
+    `멀티턴‡(정상) ${fmt(cb.multiturn?.krw)}  (${cb.multiturn?.calls || 0}콜)`,
+    `합계         ${fmt(total)}`,
+    "† fallback_reason 있는 진짜 회귀(tier 격상·MALFORMED·json-parse·silent-toolcall). 본문/검수 금액에 포함.",
+    "‡ 한 stage에서 정상 multi-turn(RAG→반영→다음 도구). 비용 낭비 아님. 본문/검수 금액에 포함.",
   ];
   return lines.join("\n");
 }
+
 
 function renderFiles() {
   renderHead();
@@ -273,7 +276,9 @@ function renderFiles() {
     const breakdown = costBreakdownTip(f);
     const fullTip = breakdown ? `${tip}\n\n${breakdown}` : tip;
     const retryCalls = (f.costBuckets && f.costBuckets.retry && f.costBuckets.retry.calls) || 0;
-    const retryBadge = retryCalls > 0 ? ` <span class="text-[10px] text-amber-600" title="재시도 추정 ${retryCalls}콜">🔁${retryCalls}</span>` : "";
+    const multiturnCalls = (f.costBuckets && f.costBuckets.multiturn && f.costBuckets.multiturn.calls) || 0;
+    const retryBadge = retryCalls > 0 ? ` <span class="text-[10px] text-rose-600" title="회귀 ${retryCalls}콜 (fallback_reason 있음)">🔁${retryCalls}</span>` : "";
+    const multiturnBadge = multiturnCalls > 0 ? ` <span class="text-[10px] text-slate-400" title="정상 멀티턴 ${multiturnCalls}콜">⇄${multiturnCalls}</span>` : "";
     tr.innerHTML =
       `<td class="py-1.5 px-2 whitespace-nowrap text-slate-500">${esc(dt)}</td>
        <td class="px-2">${esc(f.학년)}</td><td class="px-2">${esc(f.학기)}</td><td class="px-2">${esc(f.교과)}</td>
@@ -282,7 +287,7 @@ function renderFiles() {
        <td class="px-2 max-w-[180px] truncate" title="${esc(f.수업주제)}">${esc(f.수업주제)}</td>
        <td class="px-2 whitespace-nowrap text-slate-600" title="${esc(mlabel.tip)}">${esc(mlabel.label)}</td>
        <td class="px-2 text-right whitespace-nowrap text-slate-500" title="${esc(fullTip)}">${esc(costCell)}</td>
-       <td class="px-2 text-right whitespace-nowrap text-brand-600 font-medium" title="${esc(fullTip)}">${loggedCell}${retryBadge}</td>
+       <td class="px-2 text-right whitespace-nowrap text-brand-600 font-medium" title="${esc(fullTip)}">${loggedCell}${retryBadge}${multiturnBadge}</td>
        <td class="px-2 text-right whitespace-nowrap font-medium">${diffCell}</td>
        <td class="text-right px-2"></td>`;
     const btn = document.createElement("button");

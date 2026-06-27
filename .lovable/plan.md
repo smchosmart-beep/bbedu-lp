@@ -1,63 +1,41 @@
-# MID/LITE/검수 단계 → gemini-2.5-flash 전환 (stage 11만 preview 유지)
+# 적용 완료: 단계 A(지표 정정) + 단계 B3(콜 수 제한)
 
-## 배경
-정형·짧은 출력 단계는 GA 안정 모델인 `gemini-2.5-flash`로 충분하다는 판단. preview 대비 약 20~40% 비용 절감 + GA 안정성. stage 11(수업자의도)만 reflection 서술 품질 보호를 위해 preview 유지.
+## 단계 A — "재시도" 지표 정정 ✅
 
-## 최종 라우팅
+### `src/routes/api/admin/$.ts`
+- `byBucket`에 `multiturn: { usd, calls }` 추가 (기존 build/verify/retry 유지)
+- 분류 로직(상호배타):
+  - `fallback_reason !== null` → **retry**(진짜 회귀)
+  - 그 외 + 같은 (run_id, stage) seen ≥2 + 검수(99·100) 제외 → **multiturn**(정상)
+- `multiturnByStage` 추가, 응답에 포함
 
-| 단계 | 모델 |
-|---|---|
-| 1~4, 8 (LITE) | **gemini-2.5-flash** |
-| 5, 7 (MID) | **gemini-2.5-flash** |
-| **11 (수업자의도)** | **gemini-3-flash-preview** (예외 유지) |
-| 6, 9, 10 (PRIMARY) | gemini-3.5-flash (변동 없음) |
-| 99 검수 A차 | gemini-2.5-flash-lite (변동 없음) |
-| 99 검수 B차 | **gemini-2.5-flash** |
-| 100 최종검토 1순위 (client 명시) | **gemini-2.5-flash** |
-| unknown 폴백 | **gemini-2.5-flash** (MID로) |
+### `public/legacy/admin35.js`
+- 툴팁: "본문/검수/재시도†(회귀)/멀티턴‡(정상)/합계" 4줄로 분리
+- 배지: retry 회귀는 🔁{n} rose-600, multiturn 정상은 ⇄{n} slate-400 (약하게)
+- 주석 정정: † fallback_reason 있는 진짜 회귀, ‡ 정상 multi-turn
 
-## 변경
+## 단계 B3 — 콜 수 제한 ✅
 
-### 1. `src/lib/lessonplan-bridge.server.ts`
-- `MID_MODEL`: `gemini-3-flash-preview` → **`gemini-2.5-flash`**
-- `LITE_MODEL`: `gemini-3-flash-preview` → **`gemini-2.5-flash`**
-- `VERIFY_B_MODEL`: `gemini-3-flash-preview` → **`gemini-2.5-flash`**
-- 새 상수 `STAGE11_MODEL = "google/gemini-3-flash-preview"` 추가 (수업자의도 전용)
-- `pickModelForTier(tier, requested, stage?)` 시그니처 확장 (선택적 stage 인자)
-  - tier=MID & stage=11 → `STAGE11_MODEL` 반환
-  - 그 외는 기존 로직
-- 호출부 `chat.ts` 2곳에 stage 인자 전달
-- 주석 갱신: "MID/LITE/검수 = 2.5-flash, stage 11만 preview 예외"
+### 새 가드(`public/legacy/app35.js`, runTool 직전)
+- `RAG_CACHE_ENABLED = true` — 같은 stage·같은 인자 RAG 결과 캐시. hit 시 `{cached:true, hint:"…"}` 주입
+- `RAG_COUNT_GUARD_ENABLED = true`, `STAGE6_RAG_MAX = 6` — stage 6 RAG 누적 6회 도달 시 stop hint 주입
+- `CHOICES_CAP_ENABLED = true`, `MAX_CHOICES_PER_FIELD = 2` — 같은 field LLM 자발 재호출 2회 초과 차단
+- `state._lastUserRegen` 플래그 — 사용자 "다른 후보 추천" 직후 1회는 카운트 제외(보정사항)
 
-### 2. `public/legacy/app35.js`
-- line 2205 검수 폴백 `tryModels`: `["gemini-3.5-flash", "gemini-3-flash-preview", "gemini-2.5-flash"]` → **`["gemini-2.5-flash", "gemini-3-flash-preview", "gemini-3.5-flash"]`** (1순위 변경: 2.5-flash 우선, 실패 시 preview→3.5-flash로 격상)
-- line 1982 최종 폴백 모델 `gemini-3.5-flash` 유지 (다른 모델 다 실패한 후 안전망)
+### 두 루프 모두 적용
+- `runConversation` (L1549~) — 카드 표시 직전 cap 체크 → tool 메시지로 `{error:"choices_cap"}` 주입
+- `runConversationInter` (L1696~) — 동일 가드, function_result로 주입
 
-### 3. `public/legacy/admin35.html` & `admin35.js`
-- 설명 갱신:
-  - PRIMARY (6·9·10) = gemini-3.5-flash
-  - MID (5·7) = gemini-2.5-flash
-  - **MID 예외 (11 수업자의도) = gemini-3-flash-preview**
-  - LITE (1~4·8) = gemini-2.5-flash
-  - 검수 1차 = 2.5-flash-lite, 검수 2차/최종검토 = gemini-2.5-flash
-  - unknown 폴백 = gemini-2.5-flash
-
-## 비용 영향 (대략)
-| | 이전 (preview) | 이후 (2.5-flash) | 절감 |
-|---|---|---|---|
-| MID/LITE/검수 토큰 단가 | in 0.5 / out 3.0 | in 0.3 / out 2.5 | ~17~40% |
-- 전체 호출 중 MID/LITE/검수 비중을 감안하면 세션당 비용 **추가 15~25% 절감** 예상
-- PRIMARY(6·9·10)와 stage 11은 변동 없음 → 품질 핵심 단계 보호
-
-## 보존
-- `PRIMARY_MODEL` (3.5-flash), `VERIFY_A_MODEL` (2.5-flash-lite), 가격표, allowlist
-- escalateTier 격상 안전망: LITE→MID→PRIMARY 자동 격상은 그대로 작동
-- 가격표에 `gemini-2.5-flash` 엔트리 이미 존재 (in 0.3 / out 2.5)
+### 보존 / 안전장치
+- 회귀 시 1줄 비활성화: `*_ENABLED = false`
+- 기존 `guardHits` 안전착지 그대로 → 무한루프 방지
+- stage 전환 시 직전 stage의 RAG 캐시만 자동 삭제(`_b3MaybeRotate`)
+- 검수(99·100)·stage 11(수업자의도)은 RAG/present_choices 미사용 → 영향 0
 
 ## 검증
-- 빌드 통과
-- preview에서 다음 stage 별로 네트워크 model 필드 1회씩 확인:
-  - stage 5 또는 7 → `google/gemini-2.5-flash`
-  - stage 11 → `google/gemini-3-flash-preview` (예외)
-  - stage 9 또는 10 → `google/gemini-3.5-flash`
-  - stage 99/100 → `google/gemini-2.5-flash` (또는 A차 2.5-flash-lite)
+- 빌드: tsgo --noEmit 통과
+- admin /35 새로고침: "재시도(회귀) 0건" + "멀티턴(정상)에 기존 ~440원 이동" 확인 가능
+- 1세션 진행 후 콘솔에서 `[b3-rag-cache-hit]` / `[b3-rag-cap]` / `[b3-choices-cap]` 로그 확인
+
+## 단계 C 보류
+A·B 효과를 1~2일 실측한 뒤 stage 6 입력 토큰 다이어트 결정.
