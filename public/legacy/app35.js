@@ -115,7 +115,7 @@ present_choices에서 사용자가 직접 입력(custom_input)하면 "○○ 라
 - 차시·교과서쪽수·대상학급·일시는 비워 둡니다(임의 생성하지 않음).
 
 [채팅 길이]
-우측 미리보기가 주 출력 공간입니다. 채팅은 짧게(보통 1~3문장). 상세 내용은 update_plan으로 보내고, 반영 후 채팅엔 "미리보기에 반영했어요, 확인해 주세요." 정도면 충분합니다.
+우측 미리보기가 주 출력 공간입니다. 채팅은 짧게(최대 3문장, 도구 호출을 포함하면 1문장). 상세 내용은 update_plan으로 보내고, 반영 후 채팅엔 "미리보기에 반영했어요, 확인해 주세요." 정도면 충분합니다.
 
 [톤]
 친근하고 자연스러운 존댓말. 사용자가 쓴 표현·용어를 보존하고, 한 응답은 짧고 명확하게.`;
@@ -159,7 +159,7 @@ const STAGE_GUIDES = {
 
   9: `전개 활동 구성: 8단계에서 고른 모형의 단계를 전개 활동의 뼈대로 삼습니다. 단계가 있으면 그 흐름에 대응해 구성하고, 없으면 학습목표에 맞게 자유 구성합니다. 활동 흐름(세트)을 2~3개 제안하되, 한 옵션 = 한 세트(활동 2~3개 묶음)로 present_choices(multi=false, allow_regenerate=true)에 담고, 각 옵션은 "① 활동명1 → ② 활동명2 → ③ 활동명3" 형태로 적습니다. 고른 세트의 활동들로 10단계 전개_sub를 구성합니다.`,
 
-  10: `교수·학습 활동: 8단계 모형 + 9단계에서 고른 활동 세트로 도입·전개·정리를 모두 자동 작성해 반영합니다. ★ 이 단계에서는 절대 present_choices를 호출하지 마세요(활동명·활동 내용·시간·자료 등을 사용자에게 다시 묻지 않습니다 — 9단계에서 이미 세트를 골랐습니다). 곧바로 update_plan만 사용해 전부 채웁니다. update_plan은 단계별로 나눠 작게 호출하세요(한 호출에 모든 단계를 몰아넣으면 함수 인자 생성이 깨집니다 — MALFORMED_FUNCTION_CALL): ①도입(도입_* + "전개_num_subs"), ②전개 활동을 하나씩(전개_sub1_* → 전개_sub2_* …, 각 호출에 그 활동의 필드만), ③정리(정리_*). 각 update_plan의 fields 배열에는 한 단계(또는 한 전개 활동)의 필드만 담아 작게 유지합니다(각 value는 여러 줄·기호를 그대로 적고 JSON으로 다시 감싸지 않습니다). 각 단계·활동마다 학습형태·교사활동(◉◦-)·학생활동·시간(분)·자료유의평가를 모두 채우고, 도입·전개·정리 세 단계의 교사활동·학생활동을 쌍으로 채웁니다(정리 단계 포함). 전개에 활동이 여러 개면 "전개_num_subs"와 활동마다 "전개_sub{i}_교사활동/학생활동/시간/자료유의평가"를 넣습니다. 8단계 모형의 단계명을 각 활동의 '단계' 키에 대응시킵니다(다중="전개_sub{i}_단계", 단일·도입·정리="전개_단계"/"도입_단계"/"정리_단계"; 단계명은 모형 단계만 짧게, 활동명과 분리; 단계 없는 모형·미선택이면 비움). ★시간 합은 정확히 40분(±0): 도입 5 / 전개 25~30 / 정리 5. update_plan 결과에 warn이 오거나 합이 40이 아니면 가장 긴 전개_sub{i}_시간만 보정해서 즉시 update_plan을 다시 호출하세요. 채팅 본문에 "fields: [...]"나 {"fields":...} 같은 JSON을 절대 적지 마세요(도구 호출만으로 표현). 활동 반영 후 반드시 11단계로 진행합니다. ★ 이 단계에서는 절대 complete_plan을 호출하지 마세요 — 검수는 11단계 끝에서 수행합니다.`,
+  10: `교수·학습 활동: 8단계 모형 + 9단계에서 고른 활동 세트로 도입·전개·정리를 모두 자동 작성해 반영합니다. ★ 이 단계에서는 절대 present_choices를 호출하지 마세요(활동명·활동 내용·시간·자료 등을 사용자에게 다시 묻지 않습니다 — 9단계에서 이미 세트를 골랐습니다). 곧바로 update_plan만 사용해 전부 채웁니다. ★ 가능하면 도입·전개(모든 활동)·정리의 모든 필드를 **단 한 번의 update_plan**에 묶어 한꺼번에 반영하세요(분할 호출은 시스템+히스토리 재전송으로 비용 증가). 단, 한 호출의 fields가 너무 커서 함수 인자 생성이 깨질 위험이 있을 때만 단계별로 나누세요(①도입+"전개_num_subs", ②전개_sub1~N, ③정리 순). 각 value는 여러 줄·기호를 그대로 적고 JSON으로 다시 감싸지 않습니다. 각 단계·활동마다 학습형태·교사활동(◉◦-)·학생활동·시간(분)·자료유의평가를 모두 채우고, 도입·전개·정리 세 단계의 교사활동·학생활동을 쌍으로 채웁니다(정리 단계 포함). 전개에 활동이 여러 개면 "전개_num_subs"와 활동마다 "전개_sub{i}_교사활동/학생활동/시간/자료유의평가"를 넣습니다. 8단계 모형의 단계명을 각 활동의 '단계' 키에 대응시킵니다(다중="전개_sub{i}_단계", 단일·도입·정리="전개_단계"/"도입_단계"/"정리_단계"; 단계명은 모형 단계만 짧게, 활동명과 분리; 단계 없는 모형·미선택이면 비움). ★시간 합은 정확히 40분(±0): 도입 5 / 전개 25~30 / 정리 5. update_plan 결과에 warn이 오거나 합이 40이 아니면 가장 긴 전개_sub{i}_시간만 보정해서 즉시 update_plan을 다시 호출하세요. 채팅 본문에 "fields: [...]"나 {"fields":...} 같은 JSON을 절대 적지 마세요(도구 호출만으로 표현). 활동 반영 후 반드시 11단계로 진행합니다. ★ 이 단계에서는 절대 complete_plan을 호출하지 마세요 — 검수는 11단계 끝에서 수행합니다.`,
 
   11: `수업자 의도 → 검토 → 완료: ★ 10단계에서 곧장 complete_plan을 호출하면 안 됩니다. 반드시 본 단계에서 "수업자의도"를 먼저 update_plan으로 저장한 뒤에만 complete_plan을 호출합니다. 완성된 설계를 바탕으로 수업자 의도(왜 이렇게 설계했는지, 주안점)를 3~5문장으로 update_plan("수업자의도"). 그다음 "이제 전체 과정안을 검토하겠습니다."라고 한 줄 안내하고 complete_plan을 호출합니다(검토는 complete_plan이 수행하므로 따로 점검 보고하지 않습니다). complete_plan이 ok:true면 완료를 알리고, ok:false면 지적 사항을 사용자에게 간단히 전한 뒤 update_plan으로 고쳐 다시 complete_plan을 호출합니다(ok:true를 받기 전에는 "완료됐습니다"라고 하지 않습니다).`,
 };
@@ -234,7 +234,7 @@ const TOOLS = [{ functionDeclarations: [
         description: '갱신할 필드 목록. 각 항목은 {"key":필드명,"value":값}. value는 일반 문자열로 그대로 적는다(여러 줄·기호 포함, JSON으로 다시 감싸지 마라). 예: [{"key":"학습목표","value":"…할 수 있다."},{"key":"전개_sub1_교사활동","value":"◉ 활동명\\n◦ 세부 활동"}]',
         items: { type: "object", properties: {
           key: { type: "string", description: "필드명(예: 학습목표, 전개_num_subs, 전개_sub1_교사활동)" },
-          value: { type: "string", description: "필드 값(여러 줄·기호 그대로, 추가 이스케이프 불필요)" },
+          value: { type: "string", description: "필드 값(여러 줄·기호 그대로, 추가 이스케이프 불필요). 한 응답에서 가능한 한 1회만 호출해 모든 필드를 함께 반영하세요(분할 호출은 시스템+히스토리 재전송으로 비용 증가)." },
         }, required: ["key", "value"] },
       },
     }, required: ["fields"] } },
@@ -1081,7 +1081,7 @@ function findConsiderations(subject, areaText, band) {
    반영돼 원본 목록이 더 필요 없다. present_choices 결과는 영속적 이해처럼 plan에 없는
    확정값의 유일한 기록이므로 압축하지 않는다. */
 const RAG_TOOL_NAMES = new Set(["find_standards", "list_competencies", "list_core_ideas", "list_considerations", "list_lesson_models"]);
-const RAG_KEEP_RECENT = 2;   // 최근 N개의 RAG 결과는 원본 유지(현재 단계가 참조 중일 수 있음)
+const RAG_KEEP_RECENT = 1;   // 최근 N개의 RAG 결과는 원본 유지(_b3.ragCache가 같은 stage 재참조 무료 hit 보장 → 1로 축소)
 function buildAPIMessages() {
   const msgs = [...state.messages];
   const ragIdxs = [];
@@ -1810,7 +1810,16 @@ function runTool(name, args) {
     const stage = detectStage(state.partialPlan);
     if (_RAG_NAMES.has(name)) {
       _b3MaybeRotate(stage);
-      // B3-3: stage 6 RAG 누적 상한
+      // B3-2 먼저: 캐시 hit는 stage 6 카운트 가드보다 먼저 처리해 무료 + 카운트 비소모(정상 진행이 stop hint에 잘리는 사고 방지)
+      if (RAG_CACHE_ENABLED && stage != null) {
+        const key = `${stage}|${name}|${_b3StableKey(args)}`;
+        if (_b3.ragCache.has(key)) {
+          console.warn(`[b3-rag-cache-hit] stage=${stage} name=${name}`);
+          const cached = _b3.ragCache.get(key);
+          return { ...cached, cached: true, hint: "이미 동일 인자로 받은 결과를 재사용합니다. 추가 RAG 호출 없이 present_choices로 정리하세요." };
+        }
+      }
+      // B3-3: stage 6 RAG 누적 상한(신규 호출만 카운트)
       if (RAG_COUNT_GUARD_ENABLED && stage === 6) {
         const used = _b3.ragCount[6] || 0;
         if (used >= STAGE6_RAG_MAX) {
@@ -1818,17 +1827,7 @@ function runTool(name, args) {
           return { stop: true, note: "RAG 충분히 조회했습니다. 보유 후보로 present_choices를 호출하거나, 평가 단계의 다음 항목으로 진행하세요." };
         }
       }
-      // B3-2: 같은 stage·같은 인자 캐시 hit
-      if (RAG_CACHE_ENABLED && stage != null) {
-        const key = `${stage}|${name}|${_b3StableKey(args)}`;
-        if (_b3.ragCache.has(key)) {
-          console.warn(`[b3-rag-cache-hit] stage=${stage} name=${name}`);
-          const cached = _b3.ragCache.get(key);
-          // hint를 result에 같이 실어, 다음 LLM 콜이 추가 RAG 없이 present_choices로 정리하도록 유도
-          return { ...cached, cached: true, hint: "이미 동일 인자로 받은 결과를 재사용합니다. 추가 RAG 호출 없이 present_choices로 정리하세요." };
-        }
-      }
-      // 카운트는 실제 실행 직전에 증가
+      // 카운트는 실제 신규 실행 직전에 증가(캐시 hit은 위에서 이미 return)
       _b3.ragCount[stage] = (_b3.ragCount[stage] || 0) + 1;
     }
 
@@ -1886,7 +1885,8 @@ function ragFindStandards({ 교과, 학년, 학기, 단원, 출판사 }) {
     const std = lu.성취기준.map((s) => {
       const m = s.match(/\[(\d+[가-힣]+\d{2}-\d{2})\]/);
       const f = m ? ach.find((a) => (a["성취기준"] || "").startsWith(`[${m[1]}]`)) : null;
-      return { 성취기준: s, 영역: lu.영역 || (f ? f["영역"] : ""), 해설: f ? (f["성취기준 해설"] || "") : "" };
+      // 해설 원문은 사용자에게 showStandardGuidance()가 standard_guidance.json으로 안내함 — LLM 인풋은 80자만(폴백 경로 L1906와 통일)
+      return { 성취기준: s, 영역: lu.영역 || (f ? f["영역"] : ""), 해설: String(f ? (f["성취기준 해설"] || "") : "").slice(0, 80) };
     });
     return { source: "lesson_units", 단원: lu.단원명, 출판사: lu.출판사, 영역: lu.영역, 단원학습내용: lu.단원학습내용, standards: std };
   }
@@ -2148,7 +2148,23 @@ async function doCompletePlan() {
       : `${-delta}분 부족 — 가장 긴 전개 활동(예: ${target}) 시간을 ${-delta}분 늘려 update_plan으로 다시 보내세요.`;
     return { ok: false, error: `도입·전개·정리 시간 합이 ${timeSum}분입니다(정확히 40분이어야 함). ${hint} 보정 후 다시 complete_plan을 호출하세요.` };
   }
-  // 2) 독립 LLM 품질 검수(A=lite → B=preview, 폴백 3.5-flash). 무의미·placeholder 값이 있으면 완료 거부.
+  // 2) 사전 차단(verify LLM 호출 0회): 명백한 placeholder·미작성 패턴은 즉시 거부.
+  //    회귀 시: PRE_VERIFY_GATE = false 로 우회.
+  const PRE_VERIFY_GATE = true;
+  if (PRE_VERIFY_GATE) {
+    const SKIP_KEYS = new Set(["차시", "교과서쪽수", "대상학급", "일시"]); // 빈 칸 정상 필드
+    const BAD_RE = /placeholder|예시|TODO|^\s*\(\s*\)\s*$/i;
+    const hits = [];
+    for (const [k, v] of Object.entries(state.partialPlan)) {
+      if (SKIP_KEYS.has(k)) continue;
+      const s = String(v ?? "");
+      if (s && BAD_RE.test(s)) hits.push(k);
+    }
+    if (hits.length) {
+      return { ok: false, error: `다음 필드에 placeholder/미작성 패턴이 있어 완료할 수 없습니다: ${hits.slice(0, 8).join(", ")}${hits.length > 8 ? " 외" : ""}. 해당 필드를 update_plan으로 실제 값으로 고친 뒤 다시 complete_plan을 호출하세요.` };
+    }
+  }
+  // 3) 독립 LLM 품질 검수(A=lite → B=preview, 폴백 3.5-flash). 무의미·placeholder 값이 있으면 완료 거부.
   const v = await verifyPlanQuality();
   if (v.unavailable) {
     return { ok: false, error: "지금 AI 자동 검토가 일시적으로 어려워요(검토 서버가 잠시 붐빕니다). 지금 바로 다시 시도하지 말고, 사용자에게 '잠시 후 다시 완료를 시도해 주세요'라고 안내하세요." };
