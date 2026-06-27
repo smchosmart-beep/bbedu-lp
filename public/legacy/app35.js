@@ -1192,10 +1192,9 @@ async function callLLM(messages, maxTokens = 16000, onRetry = null, opts = {}) {
   if (Array.isArray(messages) && messages[0] && messages[0].role === "system") {
     messages = [{ role: "system", content: buildSystemPrompt(stage) }, ...messages.slice(1)];
   }
-  // stage 2~10은 매 턴 도구 호출(present_choices·update_plan·list_*·find_* 등)로 끝나야 정상.
-  // tool_choice="required" 강제로 본문에 후보를 텍스트만 적는 회귀를 서버 단에서 차단.
-  // (검수 99·100은 JSON 모드라 tools 없음 → 무관)
-  const forceTool = typeof stage === "number" && stage >= 2 && stage <= 10;
+  // stage 2~9는 도구 호출(present_choices·update_plan·list_*·find_* 등)로 끝나야 정상 — 회귀 차단.
+  // stage 10(자동 작성)·11(검수)은 update_plan/complete_plan 자율 호출이 자연스러워 강제하지 않음.
+  const forceTool = typeof stage === "number" && stage >= 2 && stage <= 9;
   const toolChoice = opts.toolChoice || (forceTool ? "required" : "auto");
   for (let attempt = 0; ; attempt++) {
     let res;
