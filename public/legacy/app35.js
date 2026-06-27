@@ -1766,7 +1766,7 @@ function fallbackOptions(field) {
 const RAG_CACHE_ENABLED = true;
 const RAG_COUNT_GUARD_ENABLED = true;
 const CHOICES_CAP_ENABLED = true;
-const MAX_CHOICES_PER_FIELD = 2;      // LLM 자발적 재호출 한도(사용자 regenerate 응답은 제외)
+const MAX_CHOICES_PER_FIELD = Infinity;  // 회귀: "선택지는 항상 나와야 함" — 자발 재호출 무제한 허용
 const STAGE6_RAG_MAX = 6;             // stage 6 RAG 누적 호출 상한(보수)
 // 세션-내 가드 상태: stage 전환 시 부분 리셋
 const _b3 = {
