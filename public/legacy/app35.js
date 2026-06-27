@@ -1398,7 +1398,7 @@ async function runConversation() {
   setComposerEnabled(false);
   let loader = addLoader();
   let exhausted = true;     // break/return 없이 루프를 다 돌면 true (무한 함수호출 방어)
-  let choiceRetried = false;  // "골라 주세요"라 해놓고 카드를 안 띄운 경우 1회만 재요청
+  let choiceRetried = 0;  // "골라 주세요"라 해놓고 카드를 안 띄운 경우 최대 2회 재요청
   let updateRetried = false;  // "반영/수정했다"고 해놓고 update_plan을 빠뜨린 경우 1회만 재요청
   let updatedThisTurn = false; // 이 턴에서 update_plan이 실제로 한 번이라도 호출됐는지
   let emptyChoiceRetried = false; // present_choices를 빈 options로 호출(후보 누락)한 경우 1회만 재요청
