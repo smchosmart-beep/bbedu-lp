@@ -1607,7 +1607,7 @@ async function runConversationInter() {
   setComposerEnabled(false);
   let loader = addLoader();
   let exhausted = true;
-  let choiceRetried = false, updateRetried = false, updatedThisTurn = false, emptyChoiceRetried = false, fewChoiceRetried = false, guardHits = 0;
+  let choiceRetried = 0, updateRetried = false, updatedThisTurn = false, emptyChoiceRetried = false, fewChoiceRetried = false, guardHits = 0;
   const onRetry = (n, total, status) => {
     if (!loader) return;
     const msg = status === 0 ? `연결이 불안정해 다시 시도하고 있어요… (${n}/${total})`
