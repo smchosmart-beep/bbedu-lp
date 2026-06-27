@@ -115,7 +115,7 @@ present_choices에서 사용자가 직접 입력(custom_input)하면 "○○ 라
 - 차시·교과서쪽수·대상학급·일시는 비워 둡니다(임의 생성하지 않음).
 
 [채팅 길이]
-우측 미리보기가 주 출력 공간입니다. 채팅은 짧게(보통 1~3문장). 상세 내용은 update_plan으로 보내고, 반영 후 채팅엔 "미리보기에 반영했어요, 확인해 주세요." 정도면 충분합니다.
+우측 미리보기가 주 출력 공간입니다. 채팅은 짧게(최대 3문장, 도구 호출을 포함하면 1문장). 상세 내용은 update_plan으로 보내고, 반영 후 채팅엔 "미리보기에 반영했어요, 확인해 주세요." 정도면 충분합니다.
 
 [톤]
 친근하고 자연스러운 존댓말. 사용자가 쓴 표현·용어를 보존하고, 한 응답은 짧고 명확하게.`;
@@ -234,7 +234,7 @@ const TOOLS = [{ functionDeclarations: [
         description: '갱신할 필드 목록. 각 항목은 {"key":필드명,"value":값}. value는 일반 문자열로 그대로 적는다(여러 줄·기호 포함, JSON으로 다시 감싸지 마라). 예: [{"key":"학습목표","value":"…할 수 있다."},{"key":"전개_sub1_교사활동","value":"◉ 활동명\\n◦ 세부 활동"}]',
         items: { type: "object", properties: {
           key: { type: "string", description: "필드명(예: 학습목표, 전개_num_subs, 전개_sub1_교사활동)" },
-          value: { type: "string", description: "필드 값(여러 줄·기호 그대로, 추가 이스케이프 불필요)" },
+          value: { type: "string", description: "필드 값(여러 줄·기호 그대로, 추가 이스케이프 불필요). 한 응답에서 가능한 한 1회만 호출해 모든 필드를 함께 반영하세요(분할 호출은 시스템+히스토리 재전송으로 비용 증가)." },
         }, required: ["key", "value"] },
       },
     }, required: ["fields"] } },
@@ -1081,7 +1081,7 @@ function findConsiderations(subject, areaText, band) {
    반영돼 원본 목록이 더 필요 없다. present_choices 결과는 영속적 이해처럼 plan에 없는
    확정값의 유일한 기록이므로 압축하지 않는다. */
 const RAG_TOOL_NAMES = new Set(["find_standards", "list_competencies", "list_core_ideas", "list_considerations", "list_lesson_models"]);
-const RAG_KEEP_RECENT = 2;   // 최근 N개의 RAG 결과는 원본 유지(현재 단계가 참조 중일 수 있음)
+const RAG_KEEP_RECENT = 1;   // 최근 N개의 RAG 결과는 원본 유지(_b3.ragCache가 같은 stage 재참조 무료 hit 보장 → 1로 축소)
 function buildAPIMessages() {
   const msgs = [...state.messages];
   const ragIdxs = [];
@@ -1886,7 +1886,8 @@ function ragFindStandards({ 교과, 학년, 학기, 단원, 출판사 }) {
     const std = lu.성취기준.map((s) => {
       const m = s.match(/\[(\d+[가-힣]+\d{2}-\d{2})\]/);
       const f = m ? ach.find((a) => (a["성취기준"] || "").startsWith(`[${m[1]}]`)) : null;
-      return { 성취기준: s, 영역: lu.영역 || (f ? f["영역"] : ""), 해설: f ? (f["성취기준 해설"] || "") : "" };
+      // 해설 원문은 사용자에게 showStandardGuidance()가 standard_guidance.json으로 안내함 — LLM 인풋은 80자만(폴백 경로 L1906와 통일)
+      return { 성취기준: s, 영역: lu.영역 || (f ? f["영역"] : ""), 해설: String(f ? (f["성취기준 해설"] || "") : "").slice(0, 80) };
     });
     return { source: "lesson_units", 단원: lu.단원명, 출판사: lu.출판사, 영역: lu.영역, 단원학습내용: lu.단원학습내용, standards: std };
   }
