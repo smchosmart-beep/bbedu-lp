@@ -291,7 +291,7 @@ export const Route = createFileRoute("/api/lessonplan/chat")({
                 messages: oaiMessages as never,
                 maxOutputTokens: tokenCap,
                 temperature: tcfgInUse.temperature,
-                ...(aiTools ? { tools: aiTools as never, toolChoice: "auto" as never } : {}),
+                ...(aiTools ? { tools: aiTools as never, toolChoice: safeToolChoice as never } : {}),
                 ...(json
                   ? ({
                       providerOptions: {
