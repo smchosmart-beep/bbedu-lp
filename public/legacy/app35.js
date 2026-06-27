@@ -1186,19 +1186,24 @@ function accumUsageByModel(modelUsed, prompt, output) {
 }
 
 /* function calling 지원 호출 — { content, functionCalls } 반환. onRetry(n,total,status)로 재시도 진행 통지 */
-async function callLLM(messages, maxTokens = 16000, onRetry = null) {
+async function callLLM(messages, maxTokens = 16000, onRetry = null, opts = {}) {
   const stage = detectStage(state.partialPlan);
   // 매 턴 stage에 맞는 system으로 교체 (CORE + STAGE_GUIDE ±1)
   if (Array.isArray(messages) && messages[0] && messages[0].role === "system") {
     messages = [{ role: "system", content: buildSystemPrompt(stage) }, ...messages.slice(1)];
   }
+  // stage 2~10은 매 턴 도구 호출(present_choices·update_plan·list_*·find_* 등)로 끝나야 정상.
+  // tool_choice="required" 강제로 본문에 후보를 텍스트만 적는 회귀를 서버 단에서 차단.
+  // (검수 99·100은 JSON 모드라 tools 없음 → 무관)
+  const forceTool = typeof stage === "number" && stage >= 2 && stage <= 10;
+  const toolChoice = opts.toolChoice || (forceTool ? "required" : "auto");
   for (let attempt = 0; ; attempt++) {
     let res;
     try {
       res = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages, tools: TOOLS, maxTokens, model: FORCE_MODEL, variant: VARIANT, stage, runId: state.runId }),
+        body: JSON.stringify({ messages, tools: TOOLS, maxTokens, model: FORCE_MODEL, variant: VARIANT, stage, runId: state.runId, toolChoice }),
       });
     } catch (netErr) {
       // 네트워크 실패(서버 도달 못 함) — 일시 오류로 보고 재시도
