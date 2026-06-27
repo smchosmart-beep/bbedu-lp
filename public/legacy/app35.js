@@ -1628,10 +1628,12 @@ async function runConversationInter() {
         {
           const _txt = content || "";
           const _bulletCount = (_txt.match(/^[ \t]*(?:[-*•]|[①-⑩]|\d+[.)])\s+\S/gm) || []).length;
-          const _hasChoicePhrase = /(골라|고르|선택|제안|추천|후보|마음에\s*드는|다음\s*중|세\s*가지|3\s*가지|두\s*가지|2\s*가지)/.test(_txt);
-          if (!choiceRetried && ((_hasChoicePhrase && _bulletCount >= 2) || /(골라|선택해|선택하여|고르)\s*주세요|고르세요|추천해\s*드립니다|선택해\s*주십시오/.test(_txt))) {
-            choiceRetried = true;
-            state.interInput = "방금 안내한 항목의 선택지를 지금 present_choices 카드로 띄워 주세요(채팅에 번호·불릿으로 나열하지 말고). 도구는 본문 텍스트로 적지 말고 반드시 실제 함수 호출로 보내세요.";
+          const _hasChoicePhrase = /(골라|고르|선택|제안|추천|후보|마음에\s*드는|다음\s*중|세\s*가지|3\s*가지|두\s*가지|2\s*가지|어떤\s*것)/.test(_txt);
+          if (choiceRetried < 2 && (_bulletCount >= 2 || _hasChoicePhrase)) {
+            choiceRetried++;
+            state.interInput = choiceRetried === 1
+              ? "방금 안내한 항목의 선택지를 지금 present_choices 카드로 띄워 주세요(채팅에 번호·불릿으로 나열하지 말고). 도구는 본문 텍스트로 적지 말고 반드시 실제 함수 호출로 보내세요."
+              : "다시 안내드립니다: 이번 턴의 후보를 반드시 present_choices 함수 호출로 카드를 띄워 주세요. 본문에 후보를 나열만 하는 응답은 금지입니다.";
             if (!loader) loader = addLoader();
             continue;
           }
