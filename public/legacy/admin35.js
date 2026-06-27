@@ -223,7 +223,7 @@ function byModelTip(f) {
   }).join("\n");
 }
 
-// 비용 구성 분해(본문/검수/재시도) — 로그 SSoT 기반. 없으면 빈 문자열.
+// 비용 구성 분해(본문/검수/재시도-회귀/멀티턴-정상) — 로그 SSoT 기반. 없으면 빈 문자열.
 function costBreakdownTip(f) {
   const cb = f.costBuckets;
   if (!cb) return "";
@@ -231,14 +231,17 @@ function costBreakdownTip(f) {
   const total = (cb.build?.krw || 0) + (cb.verify?.krw || 0);
   const lines = [
     "— 비용 구성 (로그 SSoT) —",
-    `본문    ${fmt(cb.build?.krw)}  (${cb.build?.calls || 0}콜)`,
-    `검수    ${fmt(cb.verify?.krw)}  (${cb.verify?.calls || 0}콜)`,
-    `재시도† ${fmt(cb.retry?.krw)}  (${cb.retry?.calls || 0}콜)`,
-    `합계    ${fmt(total)}`,
-    "† 같은 stage 중복 호출 추정(본문/검수에 이미 포함된 금액 중 재시도분)",
+    `본문         ${fmt(cb.build?.krw)}  (${cb.build?.calls || 0}콜)`,
+    `검수         ${fmt(cb.verify?.krw)}  (${cb.verify?.calls || 0}콜)`,
+    `재시도†(회귀) ${fmt(cb.retry?.krw)}  (${cb.retry?.calls || 0}콜)`,
+    `멀티턴‡(정상) ${fmt(cb.multiturn?.krw)}  (${cb.multiturn?.calls || 0}콜)`,
+    `합계         ${fmt(total)}`,
+    "† fallback_reason 있는 진짜 회귀(tier 격상·MALFORMED·json-parse·silent-toolcall). 본문/검수 금액에 포함.",
+    "‡ 한 stage에서 정상 multi-turn(RAG→반영→다음 도구). 비용 낭비 아님. 본문/검수 금액에 포함.",
   ];
   return lines.join("\n");
 }
+
 
 function renderFiles() {
   renderHead();
