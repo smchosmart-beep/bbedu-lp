@@ -1134,11 +1134,38 @@ function buildAPIMessages() {
     )
   );
   if (Object.keys(filled).length > 0) {
+    // 옵션 2: stage 6 진행 중일 때만, 이미 ㄱ~ㄹ 전부 끝난 이전 범주(평가{j}_*)는 한 줄 라벨로 요약해 시스템 페이로드를 줄인다.
+    // 현재 작업 중 범주(완성 안 됨)는 절대 압축하지 않는다 — LLM 일관성 회귀 방지.
+    const curStage = detectStage(state.partialPlan);
+    let payload = filled;
+    if (curStage === 6) {
+      const compressed = { ...filled };
+      const evalNum = parseInt(state.partialPlan["평가_num"]) || 0;
+      // 가장 작은 미완 i = 현재 작업 중. 그보다 앞 i 만 압축.
+      let curI = 0;
+      for (let i = 1; i <= evalNum; i++) {
+        const f = state.partialPlan;
+        const done = f[`평가${i}_요소`] && f[`평가${i}_방법`] && f[`평가${i}_수준상`] && f[`평가${i}_수준중`] && f[`평가${i}_수준하`] && f[`평가${i}_피드백`];
+        if (!done) { curI = i; break; }
+      }
+      const compressUpTo = curI > 0 ? curI - 1 : evalNum; // 모두 완료면 전부 압축
+      for (let j = 1; j <= compressUpTo; j++) {
+        const f = state.partialPlan;
+        const cat = f[`평가${j}_범주`] || "";
+        const elem = (f[`평가${j}_요소`] || "").toString().split(/[,\n]/)[0].trim().slice(0, 40);
+        ["범주","요소","방법","수준상","수준중","수준하","피드백"].forEach(suf => delete compressed[`평가${j}_${suf}`]);
+        compressed[`평가${j}`] = `[${cat}] ${elem} (방법·수준상중하·피드백 확정)`;
+      }
+      // fallback 가드: 압축 결과가 더 길면 원본 사용
+      const a = JSON.stringify(compressed);
+      const b = JSON.stringify(filled);
+      payload = (a.length < b.length) ? compressed : filled;
+    }
     msgs.push({
       role: "system",
       content:
         "[현재 미리보기 상태 — 사용자가 직접 수정했을 수 있습니다. 이 값이 최신입니다. 이미 채워진 필드는 다시 묻지 마세요.]\n" +
-        JSON.stringify(filled),
+        JSON.stringify(payload),
     });
   }
   return msgs;
