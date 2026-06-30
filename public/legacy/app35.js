@@ -157,16 +157,30 @@ const STAGE_GUIDES = {
   11: `수업자 의도 → 검토 → 완료: ★ 10단계에서 곧장 complete_plan을 호출하면 안 됩니다. 반드시 본 단계에서 "수업자의도"를 먼저 update_plan으로 저장한 뒤에만 complete_plan을 호출합니다. 완성된 설계를 바탕으로 수업자 의도(왜 이렇게 설계했는지, 주안점)를 3~5문장으로 update_plan("수업자의도"). 그다음 "이제 전체 과정안을 검토하겠습니다."라고 한 줄 안내하고 complete_plan을 호출합니다(검토는 complete_plan이 수행하므로 따로 점검 보고하지 않습니다). complete_plan이 ok:true면 완료를 알리고, ok:false면 지적 사항을 사용자에게 간단히 전한 뒤 update_plan으로 고쳐 다시 complete_plan을 호출합니다(ok:true를 받기 전에는 "완료됐습니다"라고 하지 않습니다).`,
 };
 
+// 8단계(교수·학습 모형) 이후에만 필요한 활동 작성 상세 규칙. 1~7단계 시스템 프롬프트에는 포함하지 않아 입력 토큰을 줄인다.
+const EXTENDED_FIELD_RULES = `[교수·학습 활동 작성 규칙 — 8단계 이후 적용]
+- 교사활동: ◉(주요) ◦(세부) -(발문) 위계 기호, 항목마다 줄바꿈(\\n).
+- 학생활동: 예상 반응 위주로, ◦(주요 반응)와 -(세부) 글머리를 붙여 항목마다 줄바꿈(\\n). 교사활동의 ◉◦-처럼 글머리 기호로 항목을 구분합니다.
+- 자료유의평가: "(자)내용\\n(유)내용\\n(평)내용" 형식. 각 줄은 (자)/(유)/(평) 라벨로 시작하고 콜론 없이 바로 붙여 씁니다(예: "(자)활동 안내 슬라이드\\n(유)모둠별 진도 차이에 유의\\n(평)관찰 평가"). 약물 기호(㉶)는 시스템이 HWPX에서 자동 변환합니다.
+- 시간(분): 다중 활동이면 "전개_sub{i}_시간"(예: "5","15","10").
+- 전개에 활동이 여러 개면 "전개_num_subs"(개수, 정수)와 활동마다 "전개_sub{i}_단계","전개_sub{i}_학습형태","전개_sub{i}_활동명","전개_sub{i}_교사활동","전개_sub{i}_학생활동","전개_sub{i}_시간","전개_sub{i}_자료유의평가"를 씁니다. 활동이 1개면 통합 키(전개_단계·전개_학습형태 등). 다중 활동(sub)은 전개에만 씁니다.
+- "단계"는 8단계 교수·학습 모형의 단계명(예: "자유 탐색")을 짧게 적는 칸입니다(미리보기 학습형태 위에 표시). 모형·단계가 없으면 비웁니다.
+- 도입과 정리는 활동이 하나입니다 — 통합 키(도입_교사활동·정리_교사활동 등)만 쓰고 ◉◦- 위계 기호로 단일 활동을 작성합니다(도입_num_subs·정리_num_subs 키나 "(활동 N)" 마커 없이).
+- sub 키 본문은 ◉ ◦ -로 시작합니다("[활동 N]" 헤더는 미리보기 카드가 표시하므로 본문에 넣지 않습니다).`;
+
 function buildSystemPrompt(stage) {
   const s = Math.max(1, Math.min(11, parseInt(stage) || 1));
   if (FORCE_FULL_PROMPT) {
     const all = Object.keys(STAGE_GUIDES).map(k => `[${k}단계 세부]\n${STAGE_GUIDES[k]}`).join("\n\n");
-    return `${CORE_PROMPT}\n\n${all}`;
+    return `${CORE_PROMPT}\n\n${EXTENDED_FIELD_RULES}\n\n${all}`;
   }
   const window = [s - 1, s, s + 1].filter(n => n >= 1 && n <= 11);
   const guides = window.map(n => `[${n}단계 세부]\n${STAGE_GUIDES[n]}`).join("\n\n");
-  return `${CORE_PROMPT}\n\n${guides}`;
+  // 1-B: ◉◦-·sub 키·(자)(유)(평) 등 활동 상세 규칙은 stage ≥ 8(교수·학습 모형 선택 직후)부터 주입.
+  const extended = s >= 8 ? `\n\n${EXTENDED_FIELD_RULES}` : "";
+  return `${CORE_PROMPT}${extended}\n\n${guides}`;
 }
+
 
 // 하위 호환: 기존 참조가 남아 있어도 동작하도록 초기값 제공(저장 메시지에 들어가는 system은 매 턴 buildSystemPrompt로 교체됨)
 const SYSTEM_PROMPT = buildSystemPrompt(1);
