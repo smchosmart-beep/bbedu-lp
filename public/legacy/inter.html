@@ -9,7 +9,6 @@
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js"></script>
@@ -20,30 +19,35 @@
   tailwind.config = {
     theme: {
       extend: {
-        fontFamily: { sans: ['Pretendard','system-ui','sans-serif'] },
-        colors: { brand: { 50:'#ecfdf5', 100:'#d1fae5', 500:'#10b981', 600:'#059669', 700:'#047857' } },
-        boxShadow: { card: '0 1px 3px 0 rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1)' }
+        fontFamily: { sans: ['Arial','Helvetica','sans-serif'] },
+        colors: {
+          brand: {
+            50:  '#c0d5e6', 100: '#acace7', 200: '#9fbee7', 300: '#8ba1d4',
+            400: '#ecab37', 500: '#f68d1f', 600: '#e48600', 700: '#e60012',
+          },
+        },
+        boxShadow: { card: '0 0 0 1px #3d4f97, inset 0 1px 0 rgba(255,255,255,.5)' }
       }
     }
   }
 </script>
 <link rel="stylesheet" href="./styles.css?v=60">
 </head>
-<body class="h-full flex flex-col bg-slate-50 text-slate-900 font-sans antialiased">
+<body class="h-full flex flex-col font-sans">
 
 <!-- 헤더 -->
-<header class="flex-none z-10">
+<header class="nn-nav flex-none z-10">
   <div class="px-5 py-3.5 flex items-center gap-3">
-    <img src="logo.png?v=1" alt="서울특별시북부교육지원청" class="w-10 h-10 flex-none object-contain">
-    <div>
-      <h1 class="text-base font-semibold leading-tight">질문이 있는 교수·학습 과정안 도우미</h1>
-      <p class="text-xs text-slate-500 leading-tight">2026 서울특별시북부교육지원청</p>
+    <img src="logo.png?v=1" alt="서울특별시북부교육지원청" class="w-10 h-10 flex-none object-contain nn-logo-frame">
+    <div class="nn-title-block">
+      <h1 class="nn-logo-pill">질문이 있는 교수·학습 과정안 도우미</h1>
+      <p class="nn-subtitle">2026 서울특별시북부교육지원청</p>
     </div>
-    <button id="adminBtn" class="ml-auto text-xs px-3.5 py-2 rounded-2xl bg-white shadow-card text-slate-600 hover:text-slate-900 flex-none transition-colors">🔒 관리자</button>
-    <button id="resetBtn" class="ml-auto text-xs px-3.5 py-2 rounded-2xl bg-white shadow-card text-slate-600 hover:text-slate-900 flex-none transition-colors hidden">↺ 새로 시작</button>
+    <button id="adminBtn" class="nn-chip ml-auto flex-none">🔒 관리자</button>
+    <button id="resetBtn" class="nn-chip ml-auto flex-none hidden">↺ 새로 시작</button>
   </div>
-  <div id="progress" class="px-5 pb-1">
-    <div class="flex items-center gap-1.5 text-[11px]"></div>
+  <div id="progress" class="nn-subnav px-5">
+    <div class="flex items-center gap-1.5"></div>
   </div>
 </header>
 
