@@ -41,9 +41,38 @@
 }
 .choice-btn:hover { background: #ecfdf5; border-color: #10b981; color: #059669; }
 
-/* ── 진행 바 ── */
+/* ── 진행 바 (레거시) ── */
 .step-pill { flex: 1; height: 4px; border-radius: 999px; background: #e2e8f0; }
 .step-pill.done   { background: #10b981; }
+
+/* ── 위저드 스테퍼 ── */
+.wizard { display: flex; align-items: center; gap: 6px; width: 100%; }
+.wz-step {
+  display: flex; align-items: center; gap: 6px;
+  flex: 0 0 auto;
+  color: #94a3b8;
+}
+.wz-num {
+  display: inline-grid; place-items: center;
+  width: 20px; height: 20px; border-radius: 999px;
+  background: #fff; border: 1.5px solid #cbd5e1;
+  font-size: 11px; font-weight: 700; color: #94a3b8;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.wz-label { font-size: 11px; font-weight: 500; white-space: nowrap; }
+.wz-step.done .wz-num    { background: #10b981; border-color: #10b981; color: #fff; }
+.wz-step.done            { color: #059669; }
+.wz-step.current .wz-num { background: #fff; border-color: #10b981; color: #059669; box-shadow: 0 0 0 3px rgba(16,185,129,.15); }
+.wz-step.current         { color: #0f172a; }
+.wz-step.current .wz-label { font-weight: 700; }
+.wz-bar {
+  flex: 1 1 auto; min-width: 8px;
+  height: 2px; border-radius: 999px; background: #e2e8f0;
+}
+.wz-bar.done { background: #10b981; }
+@media (max-width: 900px) {
+  .wz-label { display: none; }
+}
 
 /* ── 입력 영역 ── */
 textarea#input { min-height: 38px; max-height: 160px; }
