@@ -253,11 +253,11 @@ body {
 /* ── 유틸 버튼(amber) / 카본 버튼 ── */
 .nn-btn-primary {
   display: inline-block;
-  padding: 6px 12px;
+  padding: 9px 18px;
   border-radius: 2px;
   background: var(--amber);
   color: var(--carbon);
-  font: 700 11px/1.1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font: 700 12px/1.1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .5px;
   text-transform: uppercase;
   border-top:    1px solid rgba(255,255,255,.6);
