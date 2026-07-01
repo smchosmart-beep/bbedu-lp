@@ -1,97 +1,58 @@
-## 목표
-`public/legacy/` 챗봇 화면(index.html + inter.html + 공용 styles.css + app35.js/app.js 위저드 렌더)을 DESIGN.md의 **Nintendo.com 2001 "console chrome"** 미학으로 풀 재현. 외부 웹폰트 로드 없이 시스템 Arial/Helvetica만 사용.
+# 관리자 대시보드 디자인 통일
 
-## 시각 규칙 (핵심)
+메인 챗봇(`index.html`, `35.html`)에서 사용하는 Nintendo-console-chrome 스타일(Arial, 골드/레드/네이비 팔레트, `nn-*` 베벨 크롬 컴포넌트)을 `admin.html`과 `admin35.html`에도 그대로 적용합니다. 기능/스크립트/DOM id는 건드리지 않고 오직 스킨만 변경합니다.
 
-- **색 팔레트** (styles.css CSS 변수로 선언):
-  - canvas #7a8aba · periwinkle #8ba1d4 · sky #9fbee7 · lavender #acace7 · ice #c0d5e6 · platinum #dedede · surface #fff
-  - chrome-indigo #3d4f97 · muted-indigo #60619c · hairline #5a5f8c
-  - carbon #21242e · ink #21242e · ink-soft #3d4f97
-  - primary(red) #e60012 · signal(orange) #f68d1f · amber #ecab37 · nav-gold #e48600
-- **타이포**: `font-family: Arial, Helvetica, sans-serif` 로 통일. 헤딩·라벨은 `uppercase` + `letter-spacing: .5px` + `font-weight: 700`. 히어로 워드마크는 `Arial Black` + `-webkit-text-stroke: 2px #21242e` + `text-shadow: 3px 3px 0 #21242e`. 한글 라벨은 대문자 변환 없이 letter-spacing만 적용(가독성).
-- **베벨 플레이트**: 모든 카드/패널에 `border-top: 1px solid rgba(255,255,255,.55); border-left: 1px solid rgba(255,255,255,.35); border-right: 1px solid #3d4f97; border-bottom: 1px solid #3d4f97;` — 위=하이라이트, 아래=chrome-indigo 그림자 라인.
-- **모서리**: 기본 `border-radius: 0`. 큰 외곽 패널은 **chamfer**(45° 잘림) `clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)`. 로고 필/라디오/원형 화살표 버튼만 `border-radius: 999px`. 소형 카드 2~4px.
-- **하프톤 도트 텍스처**(carbon 슬래브 전용): `background-image: radial-gradient(rgba(255,255,255,.08) 1px, transparent 1.2px); background-size: 4px 4px;` 위에 `#21242e` 배경.
-- **역할별 색 배정**:
-  - 헤더 슬래브·푸터 스트립·다크 버튼 → carbon + 하프톤
-  - 로고 자리 "질문이 있는 …" 타이틀 상자 → 흰 pill + primary 레드 텍스트
-  - 관리자/새로 시작 등 상단 chip → amber, 카본 텍스트
-  - Submit/보내기/⬇ HWPX/이 수업 설계 시작 → signal 오렌지, 흰 텍스트
-  - 검증(🔎) 등 유틸 → amber
-  - 위저드 완료 스텝 = amber, 현재 스텝 = signal-orange 원형 배지, 예정 = platinum + chrome-indigo 링
-  - 상단 진행 스텝 사이 연결선 = chrome-indigo dotted 1px (`border-top: 1px dotted #60619c`)
-  - 채팅 봇 말풍선 = 흰 카드 + chrome-indigo bevel + 좌측 4px signal 오렌지 인디케이터
-  - 사용자 말풍선 = amber 배경 + carbon 텍스트 (초록 대신)
-  - 좌우 패널 배경 = platinum(#dedede) + bevel, 바깥 workspace 배경 = canvas periwinkle
-  - 좁은 미리보기 표 헤더 = canvas-soft(#9fbee7), 셀 = surface, 테두리 = hairline
-- **버튼 프레스**: `:active`에서 top-highlight 제거 + `translate(1px,1px)` (딸깍하는 하드웨어 느낌).
-- **애니메이션**: 셀 업데이트 하이라이트를 초록 대신 amber(#ecab37→transparent)로 변경. focus/hover 링 색도 signal orange로.
-- **스피너**: 회전 링 색을 signal-orange로.
+## 대상 파일
+- `public/legacy/admin.html`
+- `public/legacy/admin35.html`
+- `public/legacy/styles.css` (관리자 전용 유틸 몇 개 추가 — 표/카드/토큰 배지)
 
-## 파일 변경
+## 주요 변경 사항
 
-### 1) `public/legacy/index.html` + `public/legacy/inter.html`
-- Pretendard CDN `<link>` 제거 (외부 폰트 로드 금지).
-- `tailwind.config` 의 `fontFamily.sans` 를 `['Arial','Helvetica','sans-serif']` 로, `colors.brand` 팔레트를 위 팔레트 토큰으로 교체(50~700 을 lavender/sky/canvas/signal/amber/nav-gold/primary 로 매핑).
-- `<body>` 클래스에서 `font-sans antialiased bg-slate-50 text-slate-900` 는 유지하되 색은 CSS로 덮어씀 (`background: var(--canvas)`).
-- 헤더 구조 마크업은 그대로 두고 CSS 클래스만 재정의 — 헤더가 carbon-navy 슬래브 + 하프톤이 되도록 `<header>` 에 클래스 `nn-nav` 추가.
-- `<h1>` 텍스트를 감싸는 wrapper에 `nn-logo-pill` 클래스 부여(빨간 pill).
-- Start form 컨테이너에 `nn-panel nn-chamfer`, `.sf-field` / `.sf-submit` 는 CSS에서 재스타일.
-- 우측 미리보기 헤더 라벨은 canvas metal bar 스타일.
-- `styles.css?v=59` → `?v=60`, `app35.js?v=7` → `?v=8` (변경 없어도 캐시버스팅).
+1. **폰트/색 시스템 통일**
+   - Pretendard CDN 로드 제거, Arial만 사용 (챗봇과 동일)
+   - Tailwind config의 emerald 계열 `brand` 색을 챗봇과 동일한 브랜드 팔레트(앰버·시그널·네이비·레드)로 교체
+   - `styles.css?v=65`를 admin에도 링크 (캐시 버전 일괄 상향)
 
-### 2) `public/legacy/styles.css` — **전면 재작성**
-아래 순서로 재작성:
-1. `:root { --canvas: #7a8aba; --periwinkle: … ; --carbon:… ; --primary:…; --signal:…; --amber:… ; --nav-gold:…; --chrome-indigo:…; --muted-indigo:…; --hairline:…; --platinum:…; --surface:#fff; --ink:#21242e; --ink-soft:#3d4f97; }`
-2. `body` 배경을 `var(--canvas)` + Arial 강제.
-3. 유틸 클래스: `.nn-panel`(bevel), `.nn-chamfer`(clip-path 8px), `.nn-carbon`(carbon + halftone), `.nn-label`(uppercase Arial Bold 11px letter-spacing .5px color chrome-indigo), `.nn-hero-word`(Arial Black + text-stroke + shadow), `.nn-btn-primary`(amber), `.nn-btn-submit`(signal), `.nn-btn-secondary`(carbon), `.nn-btn-icon-arrow`(원형 signal + ▶), `.nn-logo-pill`.
-4. 기존 클래스 완전 재정의:
-   - `.msg-bubble` 라운드 4px + bevel; `.msg-bot` 흰 카드 + 좌측 4px signal 인디케이터; `.msg-user` amber 배경 carbon 텍스트 + 우측 4px indigo 그림자.
-   - `.sf-field` 흰 카드 + hairline 1px + 2px sharp corners; `:focus` signal orange 링. `.sf-label` chrome-indigo uppercase.
-   - `.sf-submit` → `.nn-btn-submit` 매핑(signal 오렌지, 흰 텍스트, sharp).
-   - `.choice-btn` amber 배경 + carbon 텍스트, sharp, hover 시 nav-gold.
-   - `.step-pill` (레거시) 는 남기되 결국 새 wizard가 사용하는 `.wizard/.wz-step/.wz-num/.wz-bar/.wz-label` 를 Nintendo 스타일로 재정의:
-     - 각 `.wz-num` 20px sharp 2px 사각형 대신 원형(로고 pill 일관성)으로 유지하되 배경/링을 palette 색으로.
-     - done → amber 채움 + carbon 체크; current → signal 오렌지 채움 + white 숫자 + 3px halo; todo → surface + hairline + chrome-indigo 숫자.
-     - `.wz-bar` dotted 1px muted-indigo, done 이면 solid amber 2px.
-     - 라벨은 uppercase 필요 없음(한글); 대신 chrome-indigo + tracking .3px.
-   - 진행 컨테이너 `#progress .wizard` 를 canvas-soft(#9fbee7) subnav-strip 위에 얹은 것처럼 `background: var(--canvas-soft); padding: 6px 10px; border-top/bottom: 1px solid var(--chrome-indigo)/rgba(255,255,255,.5);`.
-   - `.markdown` 링크는 nav-gold, 코드 블록은 carbon+halftone, blockquote 경계는 chrome-indigo dotted.
-   - `.tangoo-*` (선택 카드) → 흰 카드 + hairline, 선택 시 signal orange 링·amber tint; submit·regen 은 `.nn-btn-submit` 스타일.
-   - `.std-add-btn` amber 카드 + carbon 텍스트.
-   - `.spinner` border-top-color signal orange.
-   - `.plan-doc` 문서 표: 
-     - `.plan-tbl th` 배경 canvas-soft, 텍스트 chrome-indigo uppercase, border 1px solid hairline.
-     - `.plan-tbl td` border hairline. 
-     - `.tcell:focus` signal orange 링, `.tcell:hover` platinum 배경.
-     - `@keyframes cellUpdated` → amber(#ecab37) → transparent.
-     - `.plan-add-sub-btn.t-mini` dashed amber; `.plan-del-sub-btn:hover` primary red.
-     - `.t-step` 초록 계열 → chrome-indigo 배경 + surface 텍스트 (모형 단계명 배지가 metal chip 처럼).
-     - `.t-form` 라벨 소형 배지 → platinum + hairline.
-5. 하단 `.sym-c` 등은 색만 chrome-indigo로 조정, 나머지 로직 유지.
-6. 미디어쿼리 유지 (`.wz-label` <900px 숨김).
+2. **레이아웃 셸 교체**
+   - 상단에 챗봇과 동일한 `nn-nav` 헤더 삽입 — 로고(logo.png) + "관리자 대시보드" 타이틀 필(`nn-logo-pill`) + 우측 `nn-chip` 버튼(← 앱 / 로그아웃 / 3.5 버전 배지)
+   - 본문 배경은 `--canvas` (인디고 그레이), 컨테이너는 `max-w-6xl mx-auto px-5 py-6`
+   - 하단에 챗봇과 동일한 `nn-footer` ("◆ 2026 서울특별시북부교육지원청") 삽입
 
-### 3) `public/legacy/app35.js` + `public/legacy/app.js` (동일 위저드)
-- 마크업 변경 없음. 다만 `renderProgress` 에서 done 스텝 숫자 대신 이미 넣은 "✓" 유지 — 그대로.
-- `.msg-user` 등 인라인 색 지정이 있는지 확인 — 없음(Tailwind bg-brand-500만 사용). Tailwind config 교체가 되면 브랜드 계열 유틸이 새 팔레트로 자동 렌더.
-- 참고: Tailwind CDN 이 브랜드 색을 리컴파일하도록 `<script>tailwind.config = {...}</script>` 순서상 CDN 스크립트 이후 · CSS 이전에 위치하는지 확인(이미 그러함).
+3. **로그인 게이트 재스킨**
+   - 흰 카드 → `nn-panel nn-chamfer` 베벨 플레이트
+   - 자물쇠 배지 아이콘: `nn-hero-badge` 스타일(레드 그라디언트 + 골드 반짝임 ✦) 재사용
+   - 입력창 → `sf-field`, 로그인 버튼 → `nn-btn-submit`, 뒤로가기 링크 → `nn-fineprint`
+   - 에러 문구는 브랜드 레드(`--primary`) 유지
 
-### 4) `public/legacy/35.html` / `admin.html` / `admin35.html`
-- 이 턴에서는 챗봇 화면만 대상 — 관리자 대시보드는 스코프 밖(사용자 확인 답변에 따라 챗봇 화면 전체로 한정). 후속 요청 시 별도 진행.
+4. **대시보드 섹션 재스킨**
+   - 각 `section.bg-white rounded-3xl shadow-card` → `nn-panel nn-chamfer p-5` (라운드 제거, 베벨 크롬)
+   - 섹션 제목: `nn-panel-title` (⚙️ 모델 / 💰 비용 추적 / 📄 생성된 HWPX / 🧪 모델 비교)
+   - KPI 카드(총 비용/호출/토큰/평균/세션): `nn-panel` 미니 변형 + 앰버 강조 숫자, 슬레이트 대신 브랜드 토큰 사용
+   - 셀렉트(`periodSel`, `granSel`, `modelSel`)와 인풋: `sf-field` 스타일로 통일
+   - 액션 버튼:
+     - 주요(저장·실행·워크플로 확인): `nn-btn-submit` (앰버)
+     - 보조(새로고침·로그아웃·← 앱): `nn-chip` (베벨 골드)
+   - 진단 배너(`#diagBanner`): 레드/앰버 배경 + 베벨 테두리
 
-## 회귀·리스크
+5. **표 스타일 통일**
+   - `styles.css`에 `.nn-table` 유틸 추가: `border-collapse`, 헤더 배경 `--ice`, 헤더 텍스트 `--chrome-indigo`, 행 하단선 `--hairline` 점선, 정렬 가능 헤더는 hover 시 `--lavender`
+   - `admin.js` / `admin35.js`가 뿌리는 tbody 내용은 그대로 표시되도록 셀렉터·id 유지
 
-- **기능 영향 0**: 스크립트 로직·서버 호출·이벤트 위임(`data-key` 셀 편집)·HWPX 매핑 모두 CSS 이름 유지로 그대로 작동.
-- **가독성**: 한글 UI에 uppercase는 라벨/버튼 텍스트 중 영문·기호에만 실효(한글은 자연스레 무시됨). 본문 12~14px Arial + 한글은 시스템 fallback 이라 렌더 문제 없음.
-- **Tailwind CDN + config 재정의**: 기존 `brand-500/600/700` 유틸이 signal/nav-gold/carbon으로 자연 매핑되므로 인라인 클래스 다시 손볼 필요 없음.
-- **웰컴 폼 대비**: 흰 카드 + platinum 배경, submit signal 오렌지 → WCAG AA 대비 통과.
-- **미리보기 편집 시 focus 링**: 초록 → signal orange 로 이동 (사용자 이미 시각적 각성 요소로 기대).
-- **비용/서버**: 순수 프론트 스타일 변경. LLM/스토리지 무관.
+6. **워크플로 모달 재스킨**
+   - 오버레이 유지, 다이얼로그를 `nn-panel nn-chamfer`로 교체
+   - 헤더 하단 구분선 `--hairline`, 닫기 버튼은 `nn-chip`
+
+## 기술 세부
+
+- Tailwind CDN + tailwind.config 유지 (기존 클래스 유틸 사용을 위해). `brand` 색만 다음으로 교체:
+  ```
+  brand: { 50:'#c0d5e6', 100:'#acace7', 200:'#9fbee7', 300:'#8ba1d4',
+           400:'#ecab37', 500:'#f68d1f', 600:'#e48600', 700:'#e60012' }
+  ```
+- `boxShadow.card`도 챗봇과 동일한 인디고 하드섀도로 교체
+- `<link rel="stylesheet" href="./styles.css?v=65">` 를 두 admin 파일에 추가하고, `index.html` / `35.html` / `inter.html`의 캐시 버전도 v=65로 상향
+- JS 파일(`admin.js`, `admin35.js`) 및 모든 DOM id/class hook은 변경하지 않음 → 기능·데이터 흐름 그대로
 
 ## 검증
-
-1. `node --check public/legacy/app35.js` (스타일 변경만이지만 캐시버스팅 후 파싱 확인).
-2. Playwright: `http://localhost:8080/legacy/index.html` 진입 → 헤더·welcome 폼 스크린샷; 시작 폼 제출 → 위저드·채팅·미리보기 스크린샷; 성취기준 셀 편집 → focus 색 signal orange 확인.
-3. 콘솔 에러/네트워크 404(폰트 제거로 인한) 없음 확인.
-
-승인하시면 위 계획대로 반영하겠습니다.
+- Playwright로 `/legacy/admin35.html`, `/legacy/admin.html` 로그인 화면과 대시보드(더미 상태) 스크린샷을 찍어 챗봇 화면과 톤이 동일한지 확인

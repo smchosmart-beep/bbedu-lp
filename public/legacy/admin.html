@@ -5,157 +5,168 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>관리자 · 교수·학습 과정안 도우미</title>
 <link rel="icon" href="favicon.ico" sizes="any">
-<link rel="preconnect" href="https://cdn.jsdelivr.net">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
   tailwind.config = {
     theme: { extend: {
-      fontFamily: { sans: ['Pretendard','system-ui','sans-serif'] },
-      colors: { brand: { 50:'#ecfdf5', 100:'#d1fae5', 400:'#34d399', 500:'#10b981', 600:'#059669', 700:'#047857' } },
-      boxShadow: { card: '0 1px 3px 0 rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1)' }
+      fontFamily: { sans: ['Arial','Helvetica','sans-serif'] },
+      colors: { brand: {
+        50:'#c0d5e6', 100:'#acace7', 200:'#9fbee7', 300:'#8ba1d4',
+        400:'#ecab37', 500:'#f68d1f', 600:'#e48600', 700:'#e60012'
+      } },
+      boxShadow: { card: '0 0 0 1px #3d4f97, inset 0 1px 0 rgba(255,255,255,.5)' }
     } }
   }
 </script>
-<style>
-  th.sortable { cursor: pointer; user-select: none; }
-  th.sortable:hover { background:#f0fdfa; }
-  th.sortable .arrow { color:#10b981; font-size:10px; }
-</style>
+<link rel="stylesheet" href="./styles.css?v=65">
 </head>
-<body class="h-full bg-slate-50 text-slate-900 font-sans antialiased">
+<body class="h-full nn-admin-body text-slate-900 font-sans antialiased flex flex-col">
 
 <!-- ── 로그인 게이트 ── -->
-<div id="login" class="min-h-full flex">
-  <form id="loginForm" class="m-auto w-full max-w-sm bg-white rounded-3xl shadow-card p-6 text-center space-y-4">
-    <div class="mx-auto w-14 h-14 rounded-[18px] bg-brand-500 grid place-items-center shadow-card">
-      <span class="text-white text-2xl">🔒</span>
+<div id="login" class="min-h-full flex flex-1">
+  <form id="loginForm" class="m-auto w-full max-w-sm nn-panel nn-chamfer p-6 text-center space-y-4">
+    <div class="relative mx-auto w-16 h-16">
+      <div class="nn-hero-badge grid place-items-center">
+        <span class="text-white text-2xl leading-none">🔒</span>
+      </div>
+      <span class="absolute -right-4 -top-4 text-3xl select-none" style="color:var(--amber);text-shadow:1px 1px 0 rgba(0,0,0,.35);">✦</span>
     </div>
-    <h1 class="text-lg font-bold">관리자 로그인</h1>
-    <input id="pw" type="password" autocomplete="current-password" placeholder="비밀번호"
-      class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:border-brand-500">
-    <p id="loginErr" class="text-xs text-red-500 hidden">비밀번호가 올바르지 않습니다.</p>
-    <button type="submit" class="w-full rounded-2xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold py-3 transition-colors">로그인</button>
-    <a href="index.html" class="block text-xs text-slate-400 hover:text-slate-600">← 앱으로 돌아가기</a>
+    <h1 class="nn-hero-word text-lg">관리자 로그인</h1>
+    <input id="pw" type="password" autocomplete="current-password" placeholder="비밀번호" class="sf-field">
+    <p id="loginErr" class="text-xs hidden" style="color:var(--primary);font-weight:700;">비밀번호가 올바르지 않습니다.</p>
+    <button type="submit" class="nn-btn-submit w-full">로그인</button>
+    <a href="index.html" class="nn-fineprint block hover:underline">← 앱으로 돌아가기</a>
   </form>
 </div>
 
 <!-- ── 대시보드 ── -->
-<div id="dash" class="hidden max-w-6xl mx-auto px-5 py-6 space-y-6">
-  <header class="flex items-center gap-3">
-    <h1 class="text-lg font-bold">관리자 대시보드</h1>
-    <span class="text-xs text-slate-400">교수·학습 과정안 도우미</span>
-    <div class="ml-auto flex items-center gap-2">
-      <a href="index.html" class="text-xs px-3 py-1.5 rounded-xl bg-white shadow-card text-slate-600 hover:text-slate-900">← 앱</a>
-      <button id="logoutBtn" class="text-xs px-3 py-1.5 rounded-xl bg-white shadow-card text-slate-600 hover:text-slate-900">로그아웃</button>
+<div id="dash" class="hidden flex-1 flex flex-col">
+  <!-- 헤더 -->
+  <header class="nn-nav flex-none z-10">
+    <div class="px-5 py-3.5 flex items-center gap-3">
+      <img src="logo.png?v=1" alt="서울특별시북부교육지원청" class="w-10 h-10 flex-none object-contain nn-logo-frame">
+      <div class="nn-title-block">
+        <h1 class="nn-logo-pill">관리자 <span class="nn-logo-accent">대시보드</span></h1>
+      </div>
+      <div class="ml-auto flex items-center gap-2">
+        <a href="index.html" class="nn-chip">← 앱</a>
+        <button id="logoutBtn" class="nn-chip">로그아웃</button>
+      </div>
     </div>
   </header>
 
-  <!-- 모델 설정 -->
-  <section class="bg-white rounded-3xl shadow-card p-5">
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="text-sm font-semibold">⚙️ 모델 설정</h2>
-      <button id="workflowBtn" class="rounded-2xl border border-brand-500 text-brand-600 hover:bg-brand-50 text-sm font-medium px-4 py-2 transition-colors">📋 워크플로 확인하기</button>
-    </div>
-    <div class="flex items-end gap-3 flex-wrap">
-      <div>
-        <label class="block text-xs text-slate-500 mb-1">서비스 기본 모델 (전체 사용자 적용)</label>
-        <select id="modelSel" class="rounded-2xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:border-brand-500 min-w-[220px]"></select>
-      </div>
-      <button id="saveModelBtn" class="rounded-2xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium px-4 py-2 transition-colors">저장</button>
-      <span id="modelMsg" class="text-xs text-brand-600"></span>
-    </div>
-    <p class="text-[11px] text-slate-400 mt-2">현재 모델: <b id="curModel">…</b></p>
-  </section>
+  <div class="max-w-6xl w-full mx-auto px-5 py-6 space-y-6 flex-1">
 
-  <!-- 비용 -->
-  <section class="bg-white rounded-3xl shadow-card p-5">
-    <div class="flex items-center gap-2 mb-3 flex-wrap">
-      <h2 class="text-sm font-semibold">💰 비용 추적 <span class="font-normal text-[11px] text-slate-400">(환율 1 USD = <span id="rate">1,500</span>원, 추정치)</span></h2>
-      <div class="ml-auto flex items-center gap-1.5 text-xs">
-        <select id="periodSel" class="rounded-xl border border-slate-200 px-2.5 py-1.5 focus:outline-none focus:border-brand-500">
-          <option value="all">전체 기간</option>
-          <option value="30">최근 30일</option>
-          <option value="7">최근 7일</option>
-          <option value="1">오늘</option>
-        </select>
-        <select id="granSel" class="rounded-xl border border-slate-200 px-2.5 py-1.5 focus:outline-none focus:border-brand-500">
-          <option value="day">일별</option>
-          <option value="week">주별</option>
-          <option value="month">월별</option>
-        </select>
+    <!-- 모델 설정 -->
+    <section class="nn-panel nn-chamfer p-5">
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h2 class="nn-section-title">⚙️ 모델 설정</h2>
+        <button id="workflowBtn" class="nn-btn-submit">📋 워크플로 확인하기</button>
       </div>
-    </div>
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-      <div class="rounded-2xl bg-slate-50 p-3"><div class="text-[11px] text-slate-500">총 비용</div><div class="text-xl font-bold text-brand-600" id="cTotalKrw">₩0</div></div>
-      <div class="rounded-2xl bg-slate-50 p-3"><div class="text-[11px] text-slate-500">총 호출</div><div class="text-xl font-bold" id="cCalls">0</div></div>
-      <div class="rounded-2xl bg-slate-50 p-3"><div class="text-[11px] text-slate-500">총 토큰</div><div class="text-xl font-bold" id="cTokens">0</div></div>
-      <div class="rounded-2xl bg-slate-50 p-3"><div class="text-[11px] text-slate-500">과정안 1건당 평균 <span class="text-slate-400">(완성)</span></div><div class="text-xl font-bold" id="cAvg">₩0</div></div>
-      <div class="rounded-2xl bg-slate-50 p-3"><div class="text-[11px] text-slate-500">세션 수 <span class="text-slate-400">(시작)</span></div><div class="text-xl font-bold text-slate-700" id="cSessions">0</div></div>
-    </div>
-    <div class="h-64"><canvas id="costChart"></canvas></div>
-    <div class="mt-4">
-      <h3 class="text-xs font-semibold text-slate-600 mb-1">모델별 <span class="font-normal text-slate-400">(선택 기간)</span></h3>
+      <div class="flex items-end gap-3 flex-wrap">
+        <div>
+          <label class="sf-label" for="modelSel">서비스 기본 모델 (전체 사용자 적용)</label>
+          <select id="modelSel" class="sf-field" style="min-width:220px;"></select>
+        </div>
+        <button id="saveModelBtn" class="nn-btn-submit">저장</button>
+        <span id="modelMsg" class="text-xs" style="color:var(--nav-gold);font-weight:700;"></span>
+      </div>
+      <p class="nn-fineprint mt-2">현재 모델: <b id="curModel">…</b></p>
+    </section>
+
+    <!-- 비용 -->
+    <section class="nn-panel nn-chamfer p-5">
+      <div class="flex items-center gap-2 mb-3 flex-wrap">
+        <h2 class="nn-section-title">💰 비용 추적 <span class="nn-section-sub">(환율 1 USD = <span id="rate">1,500</span>원, 추정치)</span></h2>
+        <div class="ml-auto flex items-center gap-1.5">
+          <select id="periodSel" class="sf-field" style="width:auto;padding:6px 10px;">
+            <option value="all">전체 기간</option>
+            <option value="30">최근 30일</option>
+            <option value="7">최근 7일</option>
+            <option value="1">오늘</option>
+          </select>
+          <select id="granSel" class="sf-field" style="width:auto;padding:6px 10px;">
+            <option value="day">일별</option>
+            <option value="week">주별</option>
+            <option value="month">월별</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+        <div class="nn-kpi"><div class="nn-kpi-label">총 비용</div><div class="nn-kpi-value accent" id="cTotalKrw">₩0</div></div>
+        <div class="nn-kpi"><div class="nn-kpi-label">총 호출</div><div class="nn-kpi-value" id="cCalls">0</div></div>
+        <div class="nn-kpi"><div class="nn-kpi-label">총 토큰</div><div class="nn-kpi-value" id="cTokens">0</div></div>
+        <div class="nn-kpi"><div class="nn-kpi-label">과정안 1건당 평균 (완성)</div><div class="nn-kpi-value gold" id="cAvg">₩0</div></div>
+        <div class="nn-kpi"><div class="nn-kpi-label">세션 수 (시작)</div><div class="nn-kpi-value" id="cSessions">0</div></div>
+      </div>
+      <div class="h-64"><canvas id="costChart"></canvas></div>
+      <div class="mt-5">
+        <h3 class="nn-section-title text-xs mb-1">모델별 <span class="nn-section-sub">(선택 기간)</span></h3>
+        <div class="overflow-x-auto">
+          <table class="nn-table"><thead>
+            <tr><th>모델</th><th class="text-right">호출</th><th class="text-right">토큰</th><th class="text-right">비용(₩)</th></tr>
+          </thead><tbody id="byModelBody"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- HWPX 목록 -->
+    <section class="nn-panel nn-chamfer p-5">
+      <div class="flex items-center gap-2 mb-3 flex-wrap">
+        <h2 class="nn-section-title">📄 생성된 HWPX <span class="nn-section-sub">(컬럼을 클릭하면 정렬)</span></h2>
+        <span id="fileCount" class="nn-section-sub ml-1"></span>
+        <button id="refreshBtn" class="ml-auto nn-chip">↻ 새로고침</button>
+      </div>
       <div class="overflow-x-auto">
-        <table class="w-full text-xs"><thead class="text-slate-500 border-b">
-          <tr><th class="text-left py-1.5 px-2">모델</th><th class="text-right px-2">호출</th><th class="text-right px-2">토큰</th><th class="text-right px-2">비용(₩)</th></tr>
-        </thead><tbody id="byModelBody"></tbody></table>
+        <table class="nn-table">
+          <thead id="fileHead"></thead>
+          <tbody id="fileBody"></tbody>
+        </table>
       </div>
-    </div>
-  </section>
+      <p id="fileEmpty" class="nn-section-sub py-6 text-center hidden">아직 저장된 과정안이 없습니다.</p>
+    </section>
 
-  <!-- HWPX 목록 -->
-  <section class="bg-white rounded-3xl shadow-card p-5">
-    <div class="flex items-center gap-2 mb-3">
-      <h2 class="text-sm font-semibold">📄 생성된 HWPX <span class="font-normal text-[11px] text-slate-400">(컬럼을 클릭하면 정렬)</span></h2>
-      <span id="fileCount" class="text-[11px] text-slate-400 ml-1"></span>
-      <button id="refreshBtn" class="ml-auto text-xs px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50">↻ 새로고침</button>
-    </div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-xs">
-        <thead class="text-slate-500 border-b bg-white" id="fileHead"></thead>
-        <tbody id="fileBody"></tbody>
-      </table>
-    </div>
-    <p id="fileEmpty" class="text-xs text-slate-400 py-6 text-center hidden">아직 저장된 과정안이 없습니다.</p>
-  </section>
+    <!-- 모델 비교 -->
+    <section class="nn-panel nn-chamfer p-5">
+      <div class="flex items-center gap-2 mb-3 flex-wrap">
+        <h2 class="nn-section-title">🧪 모델 비교 <span class="nn-section-sub">(같은 프롬프트를 여러 모델에 보내 응답·토큰·예상 비용을 비교)</span></h2>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+        <div>
+          <label class="sf-label" for="cmpSystem">시스템 프롬프트 (선택)</label>
+          <textarea id="cmpSystem" rows="2" class="sf-field" placeholder="예) 당신은 한국 초등 교사를 돕는 조교입니다."></textarea>
+        </div>
+        <div>
+          <label class="sf-label" for="cmpPrompt">사용자 프롬프트</label>
+          <textarea id="cmpPrompt" rows="2" class="sf-field" placeholder="예) 3학년 2학기 자석 단원의 탐구질문 3개를 제안해 주세요."></textarea>
+        </div>
+      </div>
+      <div class="mb-2 nn-section-sub">비교할 모델 (최대 8개)</div>
+      <div id="cmpModels" class="flex flex-wrap gap-1.5 mb-3"></div>
+      <div class="flex items-center gap-2">
+        <button id="cmpRunBtn" class="nn-btn-submit">실행</button>
+        <span id="cmpMsg" class="nn-section-sub"></span>
+      </div>
+      <div id="cmpResults" class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4"></div>
+    </section>
+  </div>
 
-  <!-- 모델 비교 -->
-  <section class="bg-white rounded-3xl shadow-card p-5">
-    <div class="flex items-center gap-2 mb-3">
-      <h2 class="text-sm font-semibold">🧪 모델 비교 <span class="font-normal text-[11px] text-slate-400">(같은 프롬프트를 여러 모델에 보내 응답·토큰·예상 비용을 비교)</span></h2>
-    </div>
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
-      <div>
-        <label class="block text-xs text-slate-500 mb-1">시스템 프롬프트 (선택)</label>
-        <textarea id="cmpSystem" rows="2" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:border-brand-500" placeholder="예) 당신은 한국 초등 교사를 돕는 조교입니다."></textarea>
-      </div>
-      <div>
-        <label class="block text-xs text-slate-500 mb-1">사용자 프롬프트</label>
-        <textarea id="cmpPrompt" rows="2" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:border-brand-500" placeholder="예) 3학년 2학기 자석 단원의 탐구질문 3개를 제안해 주세요."></textarea>
-      </div>
-    </div>
-    <div class="mb-2 text-xs text-slate-500">비교할 모델 (최대 8개)</div>
-    <div id="cmpModels" class="flex flex-wrap gap-1.5 mb-3"></div>
-    <div class="flex items-center gap-2">
-      <button id="cmpRunBtn" class="rounded-2xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium px-4 py-2 transition-colors">실행</button>
-      <span id="cmpMsg" class="text-xs text-slate-500"></span>
-    </div>
-    <div id="cmpResults" class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4"></div>
-  </section>
+  <footer class="nn-footer flex-none">
+    <span class="nn-footer-accent">◆</span>2026 서울특별시북부교육지원청
+  </footer>
 </div>
 
-<!-- ── 워크플로 / 프롬프트 문서 모달 ── -->
+<!-- ── 워크플로 모달 ── -->
 <div id="workflowModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-  <div id="workflowOverlay" class="absolute inset-0 bg-black/40"></div>
-  <div class="relative bg-white rounded-3xl shadow-card w-full max-w-3xl max-h-[85vh] flex flex-col">
-    <header class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-      <h2 class="text-base font-semibold">📋 챗봇 워크플로 &amp; 프롬프트</h2>
-      <button id="workflowClose" class="text-slate-400 hover:text-slate-700 text-xl leading-none px-2">✕</button>
+  <div id="workflowOverlay" class="absolute inset-0 bg-black/50"></div>
+  <div class="relative nn-panel nn-chamfer w-full max-w-3xl max-h-[85vh] flex flex-col">
+    <header class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid var(--hairline);">
+      <h2 class="nn-section-title">📋 챗봇 워크플로 &amp; 프롬프트</h2>
+      <button id="workflowClose" class="nn-chip">✕</button>
     </header>
-    <div id="workflowBody" class="overflow-y-auto px-6 py-4 text-sm text-slate-700 space-y-4">
-      <p class="text-slate-400">불러오는 중…</p>
+    <div id="workflowBody" class="overflow-y-auto px-6 py-4 text-sm space-y-4" style="color:var(--carbon);">
+      <p class="nn-section-sub">불러오는 중…</p>
     </div>
   </div>
 </div>
