@@ -139,7 +139,7 @@ const COLS = [
   { key: "학년", label: "학년" }, { key: "학기", label: "학기" }, { key: "교과", label: "교과" },
   { key: "단원", label: "단원" }, { key: "성취기준", label: "성취기준" },
   { key: "수업주제", label: "수업주제" },
-  { key: "모델", label: "모델" },
+  
   { key: "krw", label: "비용(원)", type: "num" },
 ];
 let FILES = [];
@@ -181,7 +181,6 @@ function renderFiles() {
        <td class="px-2">${esc(f.단원)}</td>
        <td class="px-2 max-w-[220px] truncate" title="${esc(f.성취기준)}">${esc(f.성취기준)}</td>
        <td class="px-2 max-w-[180px] truncate" title="${esc(f.수업주제)}">${esc(f.수업주제)}</td>
-       <td class="px-2 whitespace-nowrap text-slate-600">${esc(f.모델 || "—")}</td>
        <td class="px-2 text-right whitespace-nowrap text-brand-600 font-medium" title="${esc(costTip)}">${esc(costCell)}</td>
        <td class="text-right px-2"></td>`;
     const btn = document.createElement("button");

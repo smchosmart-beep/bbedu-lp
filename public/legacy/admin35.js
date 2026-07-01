@@ -164,7 +164,7 @@ const COLS = [
   { key: "학년", label: "학년" }, { key: "학기", label: "학기" }, { key: "교과", label: "교과" },
   { key: "단원", label: "단원" }, { key: "성취기준", label: "성취기준" },
   { key: "수업주제", label: "수업주제" },
-  { key: "모델", label: "대표모델" },
+  
   { key: "krw", label: "저장시 ₩", type: "num" },
   { key: "krwLogged", label: "로그 재계산 ₩", type: "num" },
   { key: "diff", label: "격차", type: "num" },
@@ -272,7 +272,6 @@ function renderFiles() {
     const diffCell = (f.diff != null)
       ? `<span class="${f.diff > 0 ? "text-rose-600" : f.diff < 0 ? "text-sky-600" : "text-slate-400"}">${f.diff > 0 ? "+" : ""}${f.diff.toLocaleString()}</span>`
       : `<span class="text-slate-300">—</span>`;
-    const mlabel = dominantModelsLabel(f);
     const breakdown = costBreakdownTip(f);
     const fullTip = breakdown ? `${tip}\n\n${breakdown}` : tip;
     const retryCalls = (f.costBuckets && f.costBuckets.retry && f.costBuckets.retry.calls) || 0;
@@ -285,7 +284,6 @@ function renderFiles() {
        <td class="px-2">${esc(f.단원)}</td>
        <td class="px-2 max-w-[220px] truncate" title="${esc(f.성취기준)}">${esc(f.성취기준)}</td>
        <td class="px-2 max-w-[180px] truncate" title="${esc(f.수업주제)}">${esc(f.수업주제)}</td>
-       <td class="px-2 whitespace-nowrap text-slate-600" title="${esc(mlabel.tip)}">${esc(mlabel.label)}</td>
        <td class="px-2 text-right whitespace-nowrap text-slate-500" title="${esc(fullTip)}">${esc(costCell)}</td>
        <td class="px-2 text-right whitespace-nowrap text-brand-600 font-medium" title="${esc(fullTip)}">${loggedCell}${retryBadge}${multiturnBadge}</td>
        <td class="px-2 text-right whitespace-nowrap font-medium">${diffCell}</td>
