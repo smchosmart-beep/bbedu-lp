@@ -25,7 +25,7 @@
   --on-primary:    #ffffff;
 }
 
-html, body { font-family: Arial, Helvetica, sans-serif !important; }
+html, body { font-family: Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif !important; }
 body {
   background: var(--canvas);
   color: var(--ink);
@@ -57,13 +57,13 @@ body {
   color: var(--on-primary);
 }
 .nn-label {
-  font: 700 11px/1.1 Arial, Helvetica, sans-serif;
+  font: 700 11px/1.1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .5px;
   text-transform: uppercase;
   color: var(--ink-soft);
 }
 .nn-hero-word {
-  font: 900 24px/1 "Arial Black", Arial, Helvetica, sans-serif;
+  font: 900 24px/1 "Arial Black", Arial, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
   color: var(--surface);
   -webkit-text-stroke: 1.5px var(--carbon);
   text-shadow: 3px 3px 0 var(--carbon);
@@ -71,7 +71,7 @@ body {
   padding: 6px 2px;
 }
 .nn-hero-tagline {
-  font: 700 13px/1.4 Arial, Helvetica, sans-serif;
+  font: 700 13px/1.4 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   color: var(--carbon);
 }
 .nn-hero-badge {
@@ -84,7 +84,7 @@ body {
   border-radius: 4px;
 }
 .nn-fineprint {
-  font: 400 10px/1.4 Arial, Helvetica, sans-serif;
+  font: 400 10px/1.4 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   color: var(--muted-indigo);
   letter-spacing: .2px;
 }
@@ -109,7 +109,7 @@ body {
   display: inline-block;
   background: var(--surface);
   color: var(--primary);
-  font: 900 13px/1 "Arial Black", Arial, Helvetica, sans-serif;
+  font: 900 13px/1 "Arial Black", Arial, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
   letter-spacing: -.005em;
   padding: 5px 12px 4px;
   border-radius: 999px;
@@ -117,14 +117,14 @@ body {
   box-shadow: 0 1px 0 rgba(255,255,255,.35), 0 2px 0 var(--carbon);
 }
 .nn-subtitle {
-  font: 700 10px/1.2 Arial, Helvetica, sans-serif;
+  font: 700 10px/1.2 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .6px;
   text-transform: uppercase;
   color: var(--nav-gold);
   margin-top: 3px;
 }
 .nn-chip {
-  font: 700 11px/1 Arial, Helvetica, sans-serif;
+  font: 700 11px/1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .5px;
   text-transform: uppercase;
   color: var(--carbon);
@@ -158,12 +158,12 @@ body {
   width: 22px; height: 22px; border-radius: 999px;
   background: var(--surface);
   border: 1.5px solid var(--hairline);
-  font: 900 11px/1 "Arial Black", Arial, Helvetica, sans-serif;
+  font: 900 11px/1 "Arial Black", Arial, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
   color: var(--ink-soft);
   transition: background .1s, border-color .1s, color .1s, box-shadow .1s;
 }
 .wz-label {
-  font: 700 11px/1 Arial, Helvetica, sans-serif;
+  font: 700 11px/1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .3px;
   white-space: nowrap;
   color: var(--ink-soft);
@@ -192,7 +192,7 @@ body {
 /* ── 시작 폼 ── */
 .sf-label {
   display: block;
-  font: 700 11px/1.2 Arial, Helvetica, sans-serif;
+  font: 700 11px/1.2 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .4px;
   text-transform: uppercase;
   color: var(--ink-soft);
@@ -202,7 +202,7 @@ body {
   width: 100%; padding: 7px 9px;
   border: 1px solid var(--hairline);
   border-radius: 2px;
-  font: 400 13px/1.4 Arial, Helvetica, sans-serif;
+  font: 400 13px/1.4 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   color: var(--ink);
   background: var(--surface);
   box-shadow: inset 1px 1px 0 rgba(0,0,0,.08);
@@ -220,7 +220,7 @@ body {
   border-radius: 2px;
   background: var(--signal);
   color: var(--on-primary);
-  font: 700 12px/1.1 Arial, Helvetica, sans-serif;
+  font: 700 12px/1.1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .5px;
   text-transform: uppercase;
   border-top:    1px solid rgba(255,255,255,.55);
@@ -245,7 +245,7 @@ body {
   border-radius: 2px;
   background: var(--amber);
   color: var(--carbon);
-  font: 700 11px/1.1 Arial, Helvetica, sans-serif;
+  font: 700 11px/1.1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .5px;
   text-transform: uppercase;
   border-top:    1px solid rgba(255,255,255,.6);
@@ -263,7 +263,7 @@ body {
   padding: 6px 12px;
   background: var(--carbon);
   color: var(--on-primary);
-  font: 700 11px/1.1 Arial, Helvetica, sans-serif;
+  font: 700 11px/1.1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .5px;
   text-transform: uppercase;
   border: 1px solid #000;
@@ -320,7 +320,7 @@ body {
   box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
 }
 .nn-panel-title {
-  font: 700 11px/1.1 Arial, Helvetica, sans-serif;
+  font: 700 11px/1.1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .5px;
   text-transform: uppercase;
   color: var(--surface);
@@ -344,14 +344,14 @@ body {
   border-bottom: 1px solid #8a5f0e;
   background: var(--amber);
   color: var(--carbon);
-  font: 700 12px/1.2 Arial, Helvetica, sans-serif;
+  font: 700 12px/1.2 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .3px;
   cursor: pointer;
 }
 .choice-btn:hover { background: var(--nav-gold); color: var(--on-primary); }
 
 /* ── 입력 영역 ── */
-textarea#input { min-height: 38px; max-height: 160px; font: 400 13.5px/1.5 Arial, Helvetica, sans-serif; }
+textarea#input { min-height: 38px; max-height: 160px; font: 400 13.5px/1.5 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
 
 /* ── 마크다운 ── */
 .markdown { white-space: normal; font-size: 13px; }
@@ -384,7 +384,7 @@ textarea#input { min-height: 38px; max-height: 160px; font: 400 13.5px/1.5 Arial
 .markdown pre code { background: transparent; color: inherit; border: none; padding: 0; }
 .markdown h1, .markdown h2, .markdown h3, .markdown h4 {
   margin: 10px 0 4px;
-  font-family: "Arial Black", Arial, Helvetica, sans-serif;
+  font-family: "Arial Black", Arial, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
   font-weight: 900;
   color: var(--carbon);
   letter-spacing: -.005em;
@@ -417,7 +417,7 @@ textarea#input { min-height: 38px; max-height: 160px; font: 400 13.5px/1.5 Arial
   border: 1px solid var(--hairline);
   background: var(--surface);
   transition: border-color .1s, background .1s;
-  font: 400 13px/1.4 Arial, Helvetica, sans-serif;
+  font: 400 13px/1.4 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   color: var(--ink);
   user-select: none;
 }
@@ -437,7 +437,7 @@ textarea#input { min-height: 38px; max-height: 160px; font: 400 13.5px/1.5 Arial
 .tangoo-textarea {
   display: none; width: 100%; margin-top: 6px;
   padding: 8px 10px; border: 1px solid var(--hairline); border-radius: 2px;
-  font: 400 13px/1.4 Arial, Helvetica, sans-serif; resize: vertical; min-height: 60px;
+  font: 400 13px/1.4 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; resize: vertical; min-height: 60px;
   background: var(--surface); color: var(--ink);
   transition: border-color .1s, box-shadow .1s;
 }
@@ -445,7 +445,7 @@ textarea#input { min-height: 38px; max-height: 160px; font: 400 13.5px/1.5 Arial
 .tangoo-submit {
   padding: 8px 18px; border-radius: 2px;
   background: var(--signal); color: var(--on-primary);
-  font: 700 12px/1.1 Arial, Helvetica, sans-serif;
+  font: 700 12px/1.1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .5px; text-transform: uppercase;
   border-top: 1px solid rgba(255,255,255,.55);
   border-left: 1px solid rgba(255,255,255,.35);
@@ -469,14 +469,14 @@ textarea#input { min-height: 38px; max-height: 160px; font: 400 13.5px/1.5 Arial
 .tangoo-std-select {
   width: 100%; margin-top: 6px; padding: 6px 8px;
   border: 1px solid var(--hairline); border-radius: 2px;
-  font: 400 13px/1.4 Arial, Helvetica, sans-serif;
+  font: 400 13px/1.4 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   background: var(--surface); color: var(--ink);
 }
 .tangoo-std-select:focus { outline: none; border-color: var(--signal); }
 
 /* ── 미리보기 성취기준 '+ 추가' ── */
 .std-add-btn {
-  font: 700 10px/1 Arial, Helvetica, sans-serif;
+  font: 700 10px/1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .4px; text-transform: uppercase;
   color: var(--carbon); vertical-align: middle;
   margin-left: 6px; padding: 2px 8px; border-radius: 2px;
@@ -510,7 +510,7 @@ textarea#input { min-height: 38px; max-height: 160px; font: 400 13.5px/1.5 Arial
 .plan-doc { font-size: 12px; color: var(--ink); }
 .plan-doc-title {
   text-align: center;
-  font-family: "Arial Black", Arial, Helvetica, sans-serif;
+  font-family: "Arial Black", Arial, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
   font-size: 18px;
   font-weight: 900;
   color: var(--carbon);
@@ -534,7 +534,7 @@ textarea#input { min-height: 38px; max-height: 160px; font: 400 13.5px/1.5 Arial
 }
 .plan-tbl th {
   background: var(--canvas-soft);
-  font: 700 11px/1.35 Arial, Helvetica, sans-serif;
+  font: 700 11px/1.35 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .3px;
   color: var(--ink-soft);
   text-transform: uppercase;
@@ -584,13 +584,13 @@ textarea#input { min-height: 38px; max-height: 160px; font: 400 13.5px/1.5 Arial
   vertical-align: middle !important;
 }
 .t-stage-name {
-  font: 900 11.5px/1.1 "Arial Black", Arial, Helvetica, sans-serif;
+  font: 900 11.5px/1.1 "Arial Black", Arial, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
   color: var(--carbon);
   text-transform: uppercase;
   letter-spacing: .3px;
 }
 .t-form-label {
-  font: 700 9.5px/1 Arial, Helvetica, sans-serif;
+  font: 700 9.5px/1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   color: var(--muted-indigo); text-transform: uppercase; letter-spacing: .3px;
   margin-top: 5px;
 }
@@ -605,12 +605,12 @@ textarea#input { min-height: 38px; max-height: 160px; font: 400 13.5px/1.5 Arial
 .tcell.t-form:focus { background: #fff7ec; }
 
 .t-step-label {
-  font: 700 9.5px/1 Arial, Helvetica, sans-serif;
+  font: 700 9.5px/1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   color: var(--muted-indigo); text-transform: uppercase; letter-spacing: .3px;
   margin-top: 4px;
 }
 .tcell.t-step {
-  font: 700 10.5px/1.1 Arial, Helvetica, sans-serif;
+  font: 700 10.5px/1.1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .3px; text-transform: uppercase;
   color: var(--on-primary); text-align: center;
   background-color: var(--chrome-indigo);
@@ -629,12 +629,12 @@ textarea#input { min-height: 38px; max-height: 160px; font: 400 13.5px/1.5 Arial
   gap: 4px; margin-bottom: 3px;
 }
 .t-act-line { flex: 1; min-width: 0; }
-.t-act-no { font: 900 11px/1 "Arial Black", Arial, Helvetica, sans-serif; color: var(--signal); margin-right: 3px; }
+.t-act-no { font: 900 11px/1 "Arial Black", Arial, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; color: var(--signal); margin-right: 3px; }
 .t-actname { font-weight: 700; color: var(--carbon); }
 
 /* ── 활동 추가/삭제 버튼 ── */
 .plan-del-sub-btn {
-  font: 700 10px/1 Arial, Helvetica, sans-serif;
+  font: 700 10px/1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   color: var(--muted-indigo); cursor: pointer;
   border: none; background: none; padding: 0 4px; border-radius: 0;
   transition: color .1s, background .1s;
@@ -642,7 +642,7 @@ textarea#input { min-height: 38px; max-height: 160px; font: 400 13.5px/1.5 Arial
 .plan-del-sub-btn:hover { color: var(--surface); background: var(--primary); }
 .plan-add-sub-btn.t-mini {
   display: inline-block; margin-top: 6px;
-  font: 700 10px/1 Arial, Helvetica, sans-serif;
+  font: 700 10px/1 Arial, Helvetica, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   letter-spacing: .4px; text-transform: uppercase;
   color: var(--carbon); cursor: pointer;
   background: var(--amber);
