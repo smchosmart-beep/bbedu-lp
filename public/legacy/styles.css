@@ -758,3 +758,20 @@ textarea#input { min-height: 38px; max-height: 160px; font: 400 13.5px/1.5 Arial
   padding: 10px 14px;
   font: 700 12px/1.4 Arial, Helvetica, sans-serif;
 }
+
+/* HWPX 표 컬럼 폭 & CJK 단어 단위 줄바꿈 */
+.nn-table th, .nn-table td { word-break: keep-all; overflow-wrap: anywhere; }
+.nn-table thead th { white-space: nowrap; }
+
+.nn-table-files { table-layout: fixed; }
+.nn-table-files th:nth-child(1),  .nn-table-files td:nth-child(1)  { width: 130px; }
+.nn-table-files th:nth-child(2),  .nn-table-files td:nth-child(2)  { width: 52px; }
+.nn-table-files th:nth-child(3),  .nn-table-files td:nth-child(3)  { width: 52px; }
+.nn-table-files th:nth-child(4),  .nn-table-files td:nth-child(4)  { width: 56px; }
+.nn-table-files th:nth-child(5),  .nn-table-files td:nth-child(5)  { width: 140px; }
+.nn-table-files th:nth-child(6),  .nn-table-files td:nth-child(6)  { width: 220px; }
+.nn-table-files th:nth-child(7),  .nn-table-files td:nth-child(7)  { width: 170px; }
+.nn-table-files th:nth-child(8),  .nn-table-files td:nth-child(8)  { width: 90px; }
+.nn-table-files th:nth-child(9),  .nn-table-files td:nth-child(9)  { width: 100px; }
+.nn-table-files th:nth-child(10), .nn-table-files td:nth-child(10) { width: 90px; }
+.nn-table-files th:nth-child(11), .nn-table-files td:nth-child(11) { width: 70px; }
