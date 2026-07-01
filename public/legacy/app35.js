@@ -431,10 +431,41 @@ function setComposerEnabled(enabled) {
 
 function clearQuick()   { quickAreaEl().innerHTML = ""; }
 
-function renderProgress(pct) {
+const WIZARD_STEPS = [
+  { label: "기본 정보",           stages: [1] },
+  { label: "성취기준",             stages: [2] },
+  { label: "핵심 아이디어·역량",   stages: [3, 4] },
+  { label: "탐구 질문",            stages: [5] },
+  { label: "평가 계획",            stages: [6] },
+  { label: "학습목표·수업모형",    stages: [7, 8] },
+  { label: "교수·학습 활동",       stages: [9, 10, 11] },
+];
+function stageToWizardIdx(stage) {
+  for (let i = 0; i < WIZARD_STEPS.length; i++) {
+    if (WIZARD_STEPS[i].stages.includes(stage)) return i;
+  }
+  return stage > 11 ? WIZARD_STEPS.length : 0;
+}
+function renderProgress(_pct) {
   const p = progressEl();
-  const filled = Math.max(0, Math.min(1, pct));
-  p.innerHTML = `<div class="step-pill done" style="flex:${filled}"></div><div class="step-pill" style="flex:${1-filled}"></div>`;
+  const done = !!state.plan;
+  const curStage = done ? 99 : detectStage(state.partialPlan);
+  const curIdx = done ? WIZARD_STEPS.length : stageToWizardIdx(curStage);
+  const parts = [];
+  WIZARD_STEPS.forEach((step, i) => {
+    const status = i < curIdx ? "done" : (i === curIdx ? "current" : "todo");
+    parts.push(
+      `<div class="wz-step ${status}" title="${i+1}/${WIZARD_STEPS.length}단계 · ${escapeHTML(step.label)}">` +
+        `<span class="wz-num">${i < curIdx ? "✓" : (i + 1)}</span>` +
+        `<span class="wz-label">${escapeHTML(step.label)}</span>` +
+      `</div>`
+    );
+    if (i < WIZARD_STEPS.length - 1) {
+      parts.push(`<div class="wz-bar ${i < curIdx ? "done" : ""}"></div>`);
+    }
+  });
+  p.className = "wizard";
+  p.innerHTML = parts.join("");
 }
 
 /* ====================== 우측 미리보기 ====================== */
